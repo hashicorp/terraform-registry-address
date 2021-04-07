@@ -281,7 +281,7 @@ func TestProviderIsLegacy(t *testing.T) {
 	}
 }
 
-func TestParseProviderSourceStr(t *testing.T) {
+func TestParseAndInferProviderSourceString(t *testing.T) {
 	tests := map[string]struct {
 		Want Provider
 		Err  bool
@@ -310,10 +310,6 @@ func TestParseProviderSourceStr(t *testing.T) {
 			},
 			false,
 		},
-		// v0.12 representation
-		// In most cases this would *likely* be the same 'terraform' provider
-		// we otherwise represent as builtin, but we cannot be sure
-		// in the context of the source string alone.
 		"terraform": {
 			Provider{
 				Type:      "terraform",
@@ -455,7 +451,197 @@ func TestParseProviderSourceStr(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		got, err := ParseProviderSourceString(name)
+		got, err := ParseAndInferProviderSourceString(name)
+		if diff := cmp.Diff(test.Want, got); diff != "" {
+			t.Errorf("mismatch (%q): %s", name, diff)
+		}
+		if err != nil {
+			if test.Err == false {
+				t.Errorf("got error: %s, expected success", err)
+			}
+		} else {
+			if test.Err {
+				t.Errorf("got success, expected error")
+			}
+		}
+	}
+}
+
+func TestParseRawProviderSourceString(t *testing.T) {
+	tests := map[string]struct {
+		Want Provider
+		Err  bool
+	}{
+		"registry.terraform.io/hashicorp/aws": {
+			Provider{
+				Type:      "aws",
+				Namespace: "hashicorp",
+				Hostname:  DefaultRegistryHost,
+			},
+			false,
+		},
+		"registry.Terraform.io/HashiCorp/AWS": {
+			Provider{
+				Type:      "aws",
+				Namespace: "hashicorp",
+				Hostname:  DefaultRegistryHost,
+			},
+			false,
+		},
+		"terraform.io/builtin/terraform": {
+			Provider{
+				Type:      "terraform",
+				Namespace: BuiltInProviderNamespace,
+				Hostname:  BuiltInProviderHost,
+			},
+			false,
+		},
+		// v0.12 representation
+		// In most cases this would *likely* be the same 'terraform' provider
+		// we otherwise represent as builtin, but we cannot be sure
+		// in the context of the source string alone.
+		"terraform": {
+			Provider{
+				Type:      "terraform",
+				Namespace: LegacyProviderNamespace,
+				Hostname:  DefaultRegistryHost,
+			},
+			false,
+		},
+		"hashicorp/aws": {
+			Provider{
+				Type:      "aws",
+				Namespace: "hashicorp",
+				Hostname:  DefaultRegistryHost,
+			},
+			false,
+		},
+		"HashiCorp/AWS": {
+			Provider{
+				Type:      "aws",
+				Namespace: "hashicorp",
+				Hostname:  DefaultRegistryHost,
+			},
+			false,
+		},
+		"aws": {
+			Provider{
+				Type:      "aws",
+				Namespace: LegacyProviderNamespace,
+				Hostname:  DefaultRegistryHost,
+			},
+			false,
+		},
+		"AWS": {
+			Provider{
+				Type:      "aws",
+				Namespace: LegacyProviderNamespace,
+				Hostname:  DefaultRegistryHost,
+			},
+			false,
+		},
+		"example.com/foo-bar/baz-boop": {
+			Provider{
+				Type:      "baz-boop",
+				Namespace: "foo-bar",
+				Hostname:  svchost.Hostname("example.com"),
+			},
+			false,
+		},
+		"foo-bar/baz-boop": {
+			Provider{
+				Type:      "baz-boop",
+				Namespace: "foo-bar",
+				Hostname:  DefaultRegistryHost,
+			},
+			false,
+		},
+		"localhost:8080/foo/bar": {
+			Provider{
+				Type:      "bar",
+				Namespace: "foo",
+				Hostname:  svchost.Hostname("localhost:8080"),
+			},
+			false,
+		},
+		"example.com/too/many/parts/here": {
+			Provider{},
+			true,
+		},
+		"/too///many//slashes": {
+			Provider{},
+			true,
+		},
+		"///": {
+			Provider{},
+			true,
+		},
+		"/ / /": { // empty strings
+			Provider{},
+			true,
+		},
+		"badhost!/hashicorp/aws": {
+			Provider{},
+			true,
+		},
+		"example.com/badnamespace!/aws": {
+			Provider{},
+			true,
+		},
+		"example.com/bad--namespace/aws": {
+			Provider{},
+			true,
+		},
+		"example.com/-badnamespace/aws": {
+			Provider{},
+			true,
+		},
+		"example.com/badnamespace-/aws": {
+			Provider{},
+			true,
+		},
+		"example.com/bad.namespace/aws": {
+			Provider{},
+			true,
+		},
+		"example.com/hashicorp/badtype!": {
+			Provider{},
+			true,
+		},
+		"example.com/hashicorp/bad--type": {
+			Provider{},
+			true,
+		},
+		"example.com/hashicorp/-badtype": {
+			Provider{},
+			true,
+		},
+		"example.com/hashicorp/badtype-": {
+			Provider{},
+			true,
+		},
+		"example.com/hashicorp/bad.type": {
+			Provider{},
+			true,
+		},
+
+		// We forbid the terraform- prefix both because it's redundant to
+		// include "terraform" in a Terraform provider name and because we use
+		// the longer prefix terraform-provider- to hint for users who might be
+		// accidentally using the git repository name or executable file name
+		// instead of the provider type.
+		"example.com/hashicorp/terraform-provider-bad": {
+			Provider{},
+			true,
+		},
+		"example.com/hashicorp/terraform-bad": {
+			Provider{},
+			true,
+		},
+	}
+
+	for name, test := range tests {
+		got, err := ParseRawProviderSourceString(name)
 		if diff := cmp.Diff(test.Want, got); diff != "" {
 			t.Errorf("mismatch (%q): %s", name, diff)
 		}
