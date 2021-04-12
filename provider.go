@@ -219,7 +219,7 @@ func (pt Provider) Equals(other Provider) bool {
 	return pt == other
 }
 
-// ParseProviderSourceString parses the source attribute and returns a provider.
+// ParseRawProviderSourceString parses the source attribute and returns a provider.
 // This is intended primarily to parse the FQN-like strings returned by
 // terraform-config-inspect.
 //
@@ -227,42 +227,22 @@ func (pt Provider) Equals(other Provider) bool {
 // 		name
 // 		namespace/name
 // 		hostname/namespace/name
-func ParseProviderSourceString(str string) (Provider, error) {
+//
+// "name"-only format is parsed as -/name (i.e. legacy namespace)
+// requiring further identification of the namespace via Registry API
+func ParseRawProviderSourceString(str string) (Provider, error) {
 	var ret Provider
-
-	// split the source string into individual components
-	parts := strings.Split(str, "/")
-	if len(parts) == 0 || len(parts) > 3 {
-		return ret, &ParserError{
-			Summary: "Invalid provider source string",
-			Detail:  `The "source" attribute must be in the format "[hostname/][namespace/]name"`,
-		}
-	}
-
-	// check for an invalid empty string in any part
-	for i := range parts {
-		if parts[i] == "" {
-			return ret, &ParserError{
-				Summary: "Invalid provider source string",
-				Detail:  `The "source" attribute must be in the format "[hostname/][namespace/]name"`,
-			}
-		}
-	}
-
-	// check the 'name' portion, which is always the last part
-	givenName := parts[len(parts)-1]
-	name, err := ParseProviderPart(givenName)
+	parts, err := parseSourceStringParts(str)
 	if err != nil {
-		return ret, &ParserError{
-			Summary: "Invalid provider type",
-			Detail:  fmt.Sprintf(`Invalid provider type %q in source %q: %s"`, givenName, str, err),
-		}
+		return ret, err
 	}
+
+	name := parts[len(parts)-1]
 	ret.Type = name
 	ret.Hostname = DefaultRegistryHost
 
 	if len(parts) == 1 {
-		return NewDefaultProvider(parts[0]), nil
+		return NewLegacyProvider(name), nil
 	}
 
 	if len(parts) >= 2 {
@@ -352,10 +332,68 @@ func ParseProviderSourceString(str string) (Provider, error) {
 	return ret, nil
 }
 
-// MustParseProviderSourceString is a wrapper around ParseProviderSourceString that panics if
+// ParseAndInferProviderSourceString parses the source attribute and returns a provider.
+// This is intended primarily to parse the FQN-like strings returned by
+// terraform-config-inspect.
+//
+// The following are valid source string formats:
+// 		name
+// 		namespace/name
+// 		hostname/namespace/name
+//
+// "name" format is assumed to be hashicorp/name
+func ParseAndInferProviderSourceString(str string) (Provider, error) {
+	var ret Provider
+	parts, err := parseSourceStringParts(str)
+	if err != nil {
+		return ret, err
+	}
+
+	if len(parts) == 1 {
+		return NewDefaultProvider(parts[0]), nil
+	}
+
+	return ParseRawProviderSourceString(str)
+}
+
+func parseSourceStringParts(str string) ([]string, error) {
+	// split the source string into individual components
+	parts := strings.Split(str, "/")
+	if len(parts) == 0 || len(parts) > 3 {
+		return nil, &ParserError{
+			Summary: "Invalid provider source string",
+			Detail:  `The "source" attribute must be in the format "[hostname/][namespace/]name"`,
+		}
+	}
+
+	// check for an invalid empty string in any part
+	for i := range parts {
+		if parts[i] == "" {
+			return nil, &ParserError{
+				Summary: "Invalid provider source string",
+				Detail:  `The "source" attribute must be in the format "[hostname/][namespace/]name"`,
+			}
+		}
+	}
+
+	// check the 'name' portion, which is always the last part
+	givenName := parts[len(parts)-1]
+	name, err := ParseProviderPart(givenName)
+	if err != nil {
+		return nil, &ParserError{
+			Summary: "Invalid provider type",
+			Detail:  fmt.Sprintf(`Invalid provider type %q in source %q: %s"`, givenName, str, err),
+		}
+	}
+	parts[len(parts)-1] = name
+
+	return parts, nil
+}
+
+// MustParseRawProviderSourceString is a wrapper around ParseRawProviderSourceString that panics if
 // it returns an error.
-func MustParseProviderSourceString(str string) Provider {
-	result, err := ParseProviderSourceString(str)
+func MustParseRawProviderSourceString(str string) Provider {
+	result, err := ParseRawProviderSourceString(str)
 	if err != nil {
 		panic(err)
 	}

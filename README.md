@@ -11,7 +11,7 @@ via [`hashicorp/terraform-exec`](https://github.com/hashicorp/terraform-exec).
 ## Example
 
 ```go
-p, err := ParseProviderSourceString("hashicorp/aws")
+p, err := ParseRawProviderSourceString("hashicorp/aws")
 if err != nil {
 	// deal with error
 }
@@ -23,20 +23,20 @@ if err != nil {
 // }
 ```
 
-Please note that the `ParseProviderSourceString` is **NOT** equipped
-to deal with legacy addresses such as `aws`. Such address will be parsed
-as if provider belongs to `hashicorp` namespace in the public Registry.
-
 ## Legacy address
 
 A legacy address is by itself (without more context) ambiguous.
 For example `aws` may represent either the official `hashicorp/aws`
 or just any custom-built provider called `aws`.
 
-If you know the address was produced by Terraform <=0.12 and/or that you're
-dealing with a legacy address, the following sequence of steps should be taken.
+Such ambiguous address can be produced by Terraform `<=0.12`. You can
+just use `ImpliedProviderForUnqualifiedType` if you know for sure
+the address was produced by an affected version.
 
-(optional) Parse such legacy address by `NewLegacyProvider(name)`.
+If you do not have that context you should parse the string via
+`ParseRawProviderSourceString` and then check `addr.IsLegacy()`.
+
+### What to do with a legacy address?
 
 Ask the Registry API whether and where the provider was moved to
 
@@ -44,20 +44,31 @@ Ask the Registry API whether and where the provider was moved to
 
 ```sh
 # grafana (redirected to its own namespace)
-$ curl -s https://registry.terraform.io/v1/providers/-/grafana/versions | jq .moved_to
+$ curl -s https://registry.terraform.io/v1/providers/-/grafana/versions | jq '(.id, .moved_to)'
+"terraform-providers/grafana"
 "grafana/grafana"
 
 # aws (provider without redirection)
-$ curl -s https://registry.terraform.io/v1/providers/-/aws/versions | jq .moved_to
+$ curl -s https://registry.terraform.io/v1/providers/-/aws/versions | jq '(.id, .moved_to)'
+"hashicorp/aws"
 null
 ```
 
 Then:
 
- - Use `ParseProviderSourceString` for the _new_ (`moved_to`) address of any _moved_ provider (e.g. `grafana/grafana`).
- - Use `ImpliedProviderForUnqualifiedType` for any other provider (e.g. `aws`)
-   - Depending on context `terraform` may also be parsed by `ParseProviderSourceString`,
-   	 which assumes `hashicorp/terraform` provider. Read more about this provider below.
+ - Reparse the _new_ address (`moved_to`) of any _moved_ provider (e.g. `grafana/grafana`) via `ParseRawProviderSourceString`
+ - Reparse the full address (`id`) of any other provider (e.g. `hashicorp/aws`)
+
+Depending on context (legacy) `terraform` may need to be parsed separately.
+Read more about this provider below.
+
+If for some reason you cannot ask the Registry API you may also use
+`ParseAndInferProviderSourceString` which assumes that any legacy address
+(including `terraform`) belongs to the `hashicorp` namespace.
+
+If you cache results (which you should), ensure you have invalidation
+mechanism in place because target (migrated) namespace may change.
+Hard-coding migrations anywhere in code is strongly discouraged.
 
 ### `terraform` provider
 
@@ -74,5 +85,4 @@ Alternatively you may just treat the address as the builtin provider,
 i.e. assume all of its logic including schema is contained within
 Terraform Core.
 
-In such case you should use `ImpliedProviderForUnqualifiedType(typeName)`,
-as the function makes such assumption.
+In such case you should just use `NewBuiltInProvider("terraform")`.
