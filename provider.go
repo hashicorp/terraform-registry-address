@@ -332,7 +332,7 @@ func ParseRawProviderSourceString(str string) (Provider, error) {
 	return ret, nil
 }
 
-// ParseRawProviderSourceString parses the source attribute and returns a provider.
+// ParseAndInferProviderSourceString parses the source attribute and returns a provider.
 // This is intended primarily to parse the FQN-like strings returned by
 // terraform-config-inspect.
 //
