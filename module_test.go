@@ -7,55 +7,12 @@ import (
 	svchost "github.com/hashicorp/terraform-svchost"
 )
 
-func TestParseModuleSource(t *testing.T) {
+func TestParseRawModuleSourceRegistry_Simple(t *testing.T) {
 	tests := map[string]struct {
 		input   string
-		want    ModuleSource
+		want    ModuleSourceRegistry
 		wantErr string
 	}{
-		// Local paths
-		"local in subdirectory": {
-			input: "./child",
-			want:  ModuleSourceLocal("./child"),
-		},
-		"local in subdirectory non-normalized": {
-			input: "./nope/../child",
-			want:  ModuleSourceLocal("./child"),
-		},
-		"local in sibling directory": {
-			input: "../sibling",
-			want:  ModuleSourceLocal("../sibling"),
-		},
-		"local in sibling directory non-normalized": {
-			input: "./nope/../../sibling",
-			want:  ModuleSourceLocal("../sibling"),
-		},
-		"Windows-style local in subdirectory": {
-			input: `.\child`,
-			want:  ModuleSourceLocal("./child"),
-		},
-		"Windows-style local in subdirectory non-normalized": {
-			input: `.\nope\..\child`,
-			want:  ModuleSourceLocal("./child"),
-		},
-		"Windows-style local in sibling directory": {
-			input: `..\sibling`,
-			want:  ModuleSourceLocal("../sibling"),
-		},
-		"Windows-style local in sibling directory non-normalized": {
-			input: `.\nope\..\..\sibling`,
-			want:  ModuleSourceLocal("../sibling"),
-		},
-		"an abominable mix of different slashes": {
-			input: `./nope\nope/why\./please\don't`,
-			want:  ModuleSourceLocal("./nope/nope/why/please/don't"),
-		},
-
-		// Registry addresses
-		// (NOTE: There is another test function TestParseModuleSourceRegistry
-		// which tests this situation more exhaustively, so this is just a
-		// token set of cases to see that we are indeed calling into the
-		// registry address parser when appropriate.)
 		"main registry implied": {
 			input: "hashicorp/subnets/cidr",
 			want: ModuleSourceRegistry{
@@ -79,10 +36,6 @@ func TestParseModuleSource(t *testing.T) {
 				},
 				Subdir: "examples/foo",
 			},
-		},
-		"main registry implied, escaping subdir": {
-			input:   "hashicorp/subnets/cidr//../nope",
-			wantErr: `unsupported module source "hashicorp/subnets/cidr//../nope"`,
 		},
 		"custom registry": {
 			input: "example.com/awesomecorp/network/happycloud",
@@ -108,25 +61,11 @@ func TestParseModuleSource(t *testing.T) {
 				Subdir: "examples/foo",
 			},
 		},
-
-		"relative path without the needed prefix": {
-			input: "boop/bloop",
-			// For this case we return a generic error message from the addrs
-			// layer, but using a specialized error type which our module
-			// installer checks for and produces an extra hint for users who
-			// were intending to write a local path which then got
-			// misinterpreted as a remote source due to the missing prefix.
-			// However, the main message is generic here because this is really
-			// just a general "this string doesn't match any of our source
-			// address patterns" situation, not _necessarily_ about relative
-			// local paths.
-			wantErr: `unsupported module source "boop/bloop"`,
-		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			addr, err := ParseRawModuleSource(test.input)
+			addr, err := ParseRawModuleSourceRegistry(test.input)
 
 			if test.wantErr != "" {
 				switch {
@@ -150,32 +89,7 @@ func TestParseModuleSource(t *testing.T) {
 
 }
 
-func TestParseModuleSourceRegistry(t *testing.T) {
-	// We test parseModuleSourceRegistry alone here, in addition to testing
-	// it indirectly as part of TestParseModuleSource, because general
-	// module parsing unfortunately eats all of the error situations from
-	// registry passing by falling back to trying for a direct remote package
-	// address.
-
-	// Historical note: These test cases were originally derived from the
-	// ones in the old internal/registry/regsrc package that the
-	// ModuleSourceRegistry type is replacing. That package had the notion
-	// of "normalized" addresses as separate from the original user input,
-	// but this new implementation doesn't try to preserve the original
-	// user input at all, and so the main string output is always normalized.
-	//
-	// That package also had some behaviors to turn the namespace, name, and
-	// remote system portions into lowercase, but apparently we didn't
-	// actually make use of that in the end and were preserving the case
-	// the user provided in the input, and so for backward compatibility
-	// we're continuing to do that here, at the expense of now making the
-	// "ForDisplay" output case-preserving where its predecessor in the
-	// old package wasn't. The main Terraform Registry at registry.terraform.io
-	// is itself case-insensitive anyway, so our case-preserving here is
-	// entirely for the benefit of existing third-party registry
-	// implementations that might be case-sensitive, which we must remain
-	// compatible with now.
-
+func TestParseRawModuleSourceRegistry(t *testing.T) {
 	tests := map[string]struct {
 		input           string
 		wantString      string
@@ -283,11 +197,19 @@ func TestParseModuleSourceRegistry(t *testing.T) {
 			input:   `../boop`,
 			wantErr: `can't use local directory "../boop" as a module registry address`,
 		},
+		"main registry implied, escaping subdir": {
+			input:   "hashicorp/subnets/cidr//../nope",
+			wantErr: `subdirectory path "../nope" leads outside of the module package`,
+		},
+		"relative path without the needed prefix": {
+			input:   "boop/bloop",
+			wantErr: "a module registry source address must have either three or four slash-separated components",
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			addrI, err := ParseRawModuleSourceRegistry(test.input)
+			addr, err := ParseRawModuleSourceRegistry(test.input)
 
 			if test.wantErr != "" {
 				switch {
@@ -301,11 +223,6 @@ func TestParseModuleSourceRegistry(t *testing.T) {
 
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err.Error())
-			}
-
-			addr, ok := addrI.(ModuleSourceRegistry)
-			if !ok {
-				t.Fatalf("wrong address type %T; want %T", addrI, addr)
 			}
 
 			if got, want := addr.String(), test.wantString; got != want {

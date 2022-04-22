@@ -9,142 +9,11 @@ import (
 	svchost "github.com/hashicorp/terraform-svchost"
 )
 
-// ModuleSource is the general type for two of the possible module source
-// address types. The concrete implementations of this are ModuleSourceLocal
-// and ModuleSourceRegistry.
-type ModuleSource interface {
-	// String returns a full representation of the address, including any
-	// additional components that are typically implied by omission in
-	// user-written addresses.
-	//
-	// We typically use this longer representation in error message, in case
-	// the inclusion of normally-omitted components is helpful in debugging
-	// unexpected behavior.
-	String() string
-
-	// ForDisplay is similar to String but instead returns a representation of
-	// the idiomatic way to write the address in configuration, omitting
-	// components that are commonly just implied in addresses written by
-	// users.
-	//
-	// We typically use this shorter representation in informational messages,
-	// such as the note that we're about to start downloading a package.
-	ForDisplay() string
-
-	moduleSource()
-}
-
-var _ ModuleSource = ModuleSourceLocal("")
-var _ ModuleSource = ModuleSourceRegistry{}
-
 var moduleSourceLocalPrefixes = []string{
 	"./",
 	"../",
 	".\\",
 	"..\\",
-}
-
-// ParseRawModuleSource parses a module source address as given in the "source"
-// argument inside a "module" block in the configuration.
-//
-// For historical reasons this syntax is a bit overloaded, supporting two
-// different address types:
-//   - Local paths starting with either ./ or ../, which are special because
-//     Terraform considers them to belong to the same "package" as the caller.
-//   - Module registry addresses, given as either NAMESPACE/NAME/SYSTEM or
-//     HOST/NAMESPACE/NAME/SYSTEM, in which case the remote registry serves
-//     as an indirection over the third address type that follows.
-//
-// If you know that you're expecting a registry address in particular, use
-// ParseRawModuleSourceRegistry instead, which can therefore expose more
-// detailed error messages about registry address parsing in particular.
-func ParseRawModuleSource(raw string) (ModuleSource, error) {
-	if isModuleSourceLocal(raw) {
-		localAddr, err := parseModuleSourceLocal(raw)
-		if err != nil {
-			// This is to make sure we really return a nil ModuleSource in
-			// this case, rather than an interface containing the zero
-			// value of ModuleSourceLocal.
-			return nil, err
-		}
-		return localAddr, nil
-	}
-
-	// For historical reasons, whether an address is a registry
-	// address is defined only by whether it can be successfully
-	// parsed as one, and anything else must fall through to be
-	// parsed as a direct remote source, where go-getter might
-	// then recognize it as a filesystem path. This is odd
-	// but matches behavior we've had since Terraform v0.10 which
-	// existing modules may be relying on.
-	// (Notice that this means that there's never any path where
-	// the registry source parse error gets returned to the caller,
-	// which is annoying but has been true for many releases
-	// without it posing a serious problem in practice.)
-	if ret, err := ParseRawModuleSourceRegistry(raw); err == nil {
-		return ret, nil
-	}
-
-	return nil, fmt.Errorf("unsupported module source %q", raw)
-}
-
-// ModuleSourceLocal is a ModuleSource representing a local path reference
-// from the caller's directory to the callee's directory within the same
-// module package.
-//
-// A "module package" here means a set of modules distributed together in
-// the same archive, repository, or similar. That's a significant distinction
-// because we always download and cache entire module packages at once,
-// and then create relative references within the same directory in order
-// to ensure all modules in the package are looking at a consistent filesystem
-// layout. We also assume that modules within a package are maintained together,
-// which means that cross-cutting maintainance across all of them would be
-// possible.
-//
-// The actual value of a ModuleSourceLocal is a normalized relative path using
-// forward slashes, even on operating systems that have other conventions,
-// because we're representing traversal within the logical filesystem
-// represented by the containing package, not actually within the physical
-// filesystem we unpacked the package into. We should typically not construct
-// ModuleSourceLocal values directly, except in tests where we can ensure
-// the value meets our assumptions. Use ParseRawModuleSource instead if the
-// input string is not hard-coded in the program.
-type ModuleSourceLocal string
-
-func parseModuleSourceLocal(raw string) (ModuleSourceLocal, error) {
-	// As long as we have a suitable prefix (detected by ParseRawModuleSource)
-	// there is no failure case for local paths: we just use the "path"
-	// package's cleaning logic to remove any redundant "./" and "../"
-	// sequences and any duplicate slashes and accept whatever that
-	// produces.
-
-	// Although using backslashes (Windows-style) is non-idiomatic, we do
-	// allow it and just normalize it away, so the rest of Terraform will
-	// only see the forward-slash form.
-	if strings.Contains(raw, `\`) {
-		// Note: We use string replacement rather than filepath.ToSlash
-		// here because the filepath package behavior varies by current
-		// platform, but we want to interpret configured paths the same
-		// across all platforms: these are virtual paths within a module
-		// package, not physical filesystem paths.
-		raw = strings.ReplaceAll(raw, `\`, "/")
-	}
-
-	// Note that we could've historically blocked using "//" in a path here
-	// in order to avoid confusion with the subdir syntax in remote addresses,
-	// but we historically just treated that as the same as a single slash
-	// and so we continue to do that now for compatibility. Clean strips those
-	// out and reduces them to just a single slash.
-	clean := path.Clean(raw)
-
-	// However, we do need to keep a single "./" on the front if it isn't
-	// a "../" path, or else it would be ambigous with the registry address
-	// syntax.
-	if !strings.HasPrefix(clean, "../") {
-		clean = "./" + clean
-	}
-
-	return ModuleSourceLocal(clean), nil
 }
 
 func isModuleSourceLocal(raw string) bool {
@@ -156,26 +25,8 @@ func isModuleSourceLocal(raw string) bool {
 	return false
 }
 
-func (s ModuleSourceLocal) moduleSource() {}
-
-func (s ModuleSourceLocal) String() string {
-	// We assume that our underlying string was already normalized at
-	// construction, so we just return it verbatim.
-	return string(s)
-}
-
-func (s ModuleSourceLocal) ForDisplay() string {
-	return string(s)
-}
-
-// ModuleSourceRegistry is a ModuleSource representing a module listed in a
-// Terraform module registry.
-//
-// A registry source isn't a direct source location but rather an indirection
-// over a ModuleSourceRemote. The job of a registry is to translate the
-// combination of a ModuleSourceRegistry and a module version number into
-// a concrete ModuleSourceRemote that Terraform will then download and
-// install.
+// ModuleSourceRegistry is representing a module listed in a Terraform module
+// registry.
 type ModuleSourceRegistry struct {
 	// PackageAddr is the registry package that the target module belongs to.
 	// The module installer must translate this into a ModuleSourceRemote
@@ -201,14 +52,9 @@ const DefaultModuleRegistryHost = svchost.Hostname("registry.terraform.io")
 var moduleRegistryNamePattern = regexp.MustCompile("^[0-9A-Za-z](?:[0-9A-Za-z-_]{0,62}[0-9A-Za-z])?$")
 var moduleRegistryTargetSystemPattern = regexp.MustCompile("^[0-9a-z]{1,64}$")
 
-// ParseRawModuleSourceRegistry is a variant of ParseRawModuleSource which only
-// accepts module registry addresses, and will reject any other address type.
-//
-// Use this instead of ParseRawModuleSource if you know from some other surrounding
-// context that an address is intended to be a registry address rather than
-// some other address type, which will then allow for better error reporting
-// due to the additional information about user intent.
-func ParseRawModuleSourceRegistry(raw string) (ModuleSource, error) {
+// ParseRawModuleSourceRegistry only accepts module registry addresses, and
+// will reject any other address type.
+func ParseRawModuleSourceRegistry(raw string) (ModuleSourceRegistry, error) {
 	// Before we delegate to the "real" function we'll just make sure this
 	// doesn't look like a local source address, so we can return a better
 	// error message for that situation.
@@ -216,13 +62,7 @@ func ParseRawModuleSourceRegistry(raw string) (ModuleSource, error) {
 		return ModuleSourceRegistry{}, fmt.Errorf("can't use local directory %q as a module registry address", raw)
 	}
 
-	ret, err := parseModuleSourceRegistry(raw)
-	if err != nil {
-		// This is to make sure we return a nil ModuleSource, rather than
-		// a non-nil ModuleSource containing a zero-value ModuleSourceRegistry.
-		return nil, err
-	}
-	return ret, nil
+	return parseModuleSourceRegistry(raw)
 }
 
 func parseModuleSourceRegistry(raw string) (ModuleSourceRegistry, error) {
@@ -343,8 +183,13 @@ func parseModuleRegistryTargetSystem(given string) (string, error) {
 	return given, nil
 }
 
-func (s ModuleSourceRegistry) moduleSource() {}
-
+// String returns a full representation of the address, including any
+// additional components that are typically implied by omission in
+// user-written addresses.
+//
+// We typically use this longer representation in error message, in case
+// the inclusion of normally-omitted components is helpful in debugging
+// unexpected behavior.
 func (s ModuleSourceRegistry) String() string {
 	if s.Subdir != "" {
 		return s.PackageAddr.String() + "//" + s.Subdir
@@ -352,6 +197,13 @@ func (s ModuleSourceRegistry) String() string {
 	return s.PackageAddr.String()
 }
 
+// ForDisplay is similar to String but instead returns a representation of
+// the idiomatic way to write the address in configuration, omitting
+// components that are commonly just implied in addresses written by
+// users.
+//
+// We typically use this shorter representation in informational messages,
+// such as the note that we're about to start downloading a package.
 func (s ModuleSourceRegistry) ForDisplay() string {
 	if s.Subdir != "" {
 		return s.PackageAddr.ForDisplay() + "//" + s.Subdir
