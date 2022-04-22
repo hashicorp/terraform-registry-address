@@ -9,22 +9,6 @@ import (
 	svchost "github.com/hashicorp/terraform-svchost"
 )
 
-var moduleSourceLocalPrefixes = []string{
-	"./",
-	"../",
-	".\\",
-	"..\\",
-}
-
-func isModuleSourceLocal(raw string) bool {
-	for _, prefix := range moduleSourceLocalPrefixes {
-		if strings.HasPrefix(raw, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
 // ModuleSourceRegistry is representing a module listed in a Terraform module
 // registry.
 type ModuleSourceRegistry struct {
@@ -55,17 +39,6 @@ var moduleRegistryTargetSystemPattern = regexp.MustCompile("^[0-9a-z]{1,64}$")
 // ParseRawModuleSourceRegistry only accepts module registry addresses, and
 // will reject any other address type.
 func ParseRawModuleSourceRegistry(raw string) (ModuleSourceRegistry, error) {
-	// Before we delegate to the "real" function we'll just make sure this
-	// doesn't look like a local source address, so we can return a better
-	// error message for that situation.
-	if isModuleSourceLocal(raw) {
-		return ModuleSourceRegistry{}, fmt.Errorf("can't use local directory %q as a module registry address", raw)
-	}
-
-	return parseModuleSourceRegistry(raw)
-}
-
-func parseModuleSourceRegistry(raw string) (ModuleSourceRegistry, error) {
 	var err error
 
 	var subDir string

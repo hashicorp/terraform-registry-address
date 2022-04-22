@@ -189,13 +189,13 @@ func TestParseRawModuleSourceRegistry(t *testing.T) {
 			// Can't use a local path when we're specifically trying to parse
 			// a _registry_ source address.
 			input:   `./boop`,
-			wantErr: `can't use local directory "./boop" as a module registry address`,
+			wantErr: `a module registry source address must have either three or four slash-separated components`,
 		},
 		"local path from parent dir": {
 			// Can't use a local path when we're specifically trying to parse
 			// a _registry_ source address.
 			input:   `../boop`,
-			wantErr: `can't use local directory "../boop" as a module registry address`,
+			wantErr: `a module registry source address must have either three or four slash-separated components`,
 		},
 		"main registry implied, escaping subdir": {
 			input:   "hashicorp/subnets/cidr//../nope",

@@ -94,14 +94,7 @@ In such case you should just use `NewBuiltInProvider("terraform")`.
 ### Example
 
 ```go
-local, err := ParseRawModuleSource("./local")
-if err != nil {
-	// deal with error
-}
-
-// local == ModuleSourceLocal("./local")
-
-registry, err := ParseRawModuleSource("hashicorp/subnets/cidr")
+registry, err := ParseRawModuleSourceRegistry("hashicorp/subnets/cidr")
 if err != nil {
 	// deal with error
 }
