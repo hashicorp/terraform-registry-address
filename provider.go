@@ -301,6 +301,44 @@ func MustParseProviderSource(raw string) (Provider) {
 	return p
 }
 
+// ValidateProviderAddress returns error if the given address is not FQN,
+// that is if it is missing any of the three components from
+// hostname/namespace/name.
+func ValidateProviderAddress(raw string) error {
+	parts, err := parseSourceStringParts(raw)
+	if err != nil {
+		return err
+	}
+
+	if len(parts) != 3 {
+		return &ParserError{
+			Summary: "Invalid provider address format",
+			Detail:  `Expected FQN in the format "hostname/namespace/name"`,
+		}
+	}
+
+	p, err := ParseProviderSource(raw)
+	if err != nil {
+		return err
+	}
+
+	if !p.HasKnownNamespace() {
+		return &ParserError{
+			Summary: "Unknown provider namespace",
+			Detail:  `Expected FQN in the format "hostname/namespace/name"`,
+		}
+	}
+
+	if !p.IsLegacy() {
+		return &ParserError{
+			Summary: "Invalid legacy provider namespace",
+			Detail:  `Expected FQN in the format "hostname/namespace/name"`,
+		}
+	}
+
+	return nil
+}
+
 func parseSourceStringParts(str string) ([]string, error) {
 	// split the source string into individual components
 	parts := strings.Split(str, "/")

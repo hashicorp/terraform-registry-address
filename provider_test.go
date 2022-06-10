@@ -547,3 +547,7 @@ func TestProviderEquals(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateProviderAddress(t *testing.T) {
+	t.Skip("TODO")
+}
