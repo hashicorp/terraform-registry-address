@@ -110,6 +110,16 @@ func ParseModuleSource(raw string) (Module, error) {
 	return ret, nil
 }
 
+// MustParseModuleSource is a wrapper around ParseModuleSource that panics if
+// it returns an error.
+func MustParseModuleSource(raw string) (Module) {
+	mod, err := ParseModuleSource(raw)
+	if err != nil {
+		panic(err)
+	}
+	return mod
+}
+
 // parseModuleRegistryName validates and normalizes a string in either the
 // "namespace" or "name" position of a module registry source address.
 func parseModuleRegistryName(given string) (string, error) {

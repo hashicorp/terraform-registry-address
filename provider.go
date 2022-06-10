@@ -291,6 +291,16 @@ func ParseProviderSource(str string) (Provider, error) {
 	return ret, nil
 }
 
+// MustParseProviderSource is a wrapper around ParseProviderSource that panics if
+// it returns an error.
+func MustParseProviderSource(raw string) (Provider) {
+	p, err := ParseProviderSource(raw)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
 func parseSourceStringParts(str string) ([]string, error) {
 	// split the source string into individual components
 	parts := strings.Split(str, "/")
