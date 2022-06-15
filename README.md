@@ -11,6 +11,8 @@ and **module** addresses (such as `hashicorp/subnets/cidr`).
  - [`terraform version -json`](https://www.terraform.io/cli/commands/version#example) (`provider_selections`)
  - [`terraform providers schema -json`](https://www.terraform.io/cli/commands/providers/schema#providers-schema-representation) (keys of `provider_schemas`)
  - within `required_providers` block in Terraform configuration (`*.tf`)
+ - Terraform [CLI configuration file](https://www.terraform.io/cli/config/config-file#provider-installation)
+ - Plugin [reattach configurations](https://www.terraform.io/plugin/debugging#running-terraform-with-a-provider-in-debug-mode)
 
 **Module** addresses can be found within `source` argument
 of `module` block in Terraform configuration (`*.tf`)
@@ -131,9 +133,9 @@ However `NewProvider()` will panic if you pass an empty namespace
 or any placeholder indicating unknown namespace.
 
 ```go
-NewProvider(DefaultProviderRegistryHost, "aws", "")  // panic
-NewProvider(DefaultProviderRegistryHost, "aws", "-") // panic
-NewProvider(DefaultProviderRegistryHost, "aws", "?") // panic
+NewProvider(DefaultProviderRegistryHost, "", "aws")  // panic
+NewProvider(DefaultProviderRegistryHost, "-", "aws") // panic
+NewProvider(DefaultProviderRegistryHost, "?", "aws") // panic
 ```
 
 If you come across an ambiguous address, you should resolve

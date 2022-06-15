@@ -1,13 +1,15 @@
 package tfaddr
 
 import (
+	"fmt"
+	"log"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	svchost "github.com/hashicorp/terraform-svchost"
 )
 
-func TestParseRawModule_Simple(t *testing.T) {
+func TestParseModuleSource_simple(t *testing.T) {
 	tests := map[string]struct {
 		input   string
 		want    Module
@@ -89,7 +91,7 @@ func TestParseRawModule_Simple(t *testing.T) {
 
 }
 
-func TestParseRawModule(t *testing.T) {
+func TestParseModuleSource(t *testing.T) {
 	tests := map[string]struct {
 		input           string
 		wantString      string
@@ -236,4 +238,13 @@ func TestParseRawModule(t *testing.T) {
 			}
 		})
 	}
+}
+
+func ExampleParseModuleSource() {
+	mAddr, err := ParseModuleSource("hashicorp/consul/aws//modules/consul-cluster")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%#v", mAddr)
+	// Output: tfaddr.Module{Package:tfaddr.ModulePackage{Host:svchost.Hostname("registry.terraform.io"), Namespace:"hashicorp", Name:"consul", TargetSystem:"aws"}, Subdir:"modules/consul-cluster"}
 }

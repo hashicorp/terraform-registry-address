@@ -1,6 +1,8 @@
 package tfaddr
 
 import (
+	"fmt"
+	"log"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -240,6 +242,15 @@ func TestProviderIsLegacy(t *testing.T) {
 			t.Errorf("wrong result for %s\n", test.Input.String())
 		}
 	}
+}
+
+func ExampleParseProviderSource() {
+	pAddr, err := ParseProviderSource("hashicorp/aws")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%#v", pAddr)
+	// Output: tfaddr.Provider{Type:"aws", Namespace:"hashicorp", Hostname:svchost.Hostname("registry.terraform.io")}
 }
 
 func TestParseProviderSource(t *testing.T) {
