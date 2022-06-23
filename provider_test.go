@@ -1,6 +1,8 @@
 package tfaddr
 
 import (
+	"fmt"
+	"log"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -15,18 +17,18 @@ func TestProviderString(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: "hashicorp",
 			},
-			NewDefaultProvider("test").String(),
+			NewProvider(DefaultProviderRegistryHost, "hashicorp", "test").String(),
 		},
 		{
 			Provider{
 				Type:      "test-beta",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: "hashicorp",
 			},
-			NewDefaultProvider("test-beta").String(),
+			NewProvider(DefaultProviderRegistryHost, "hashicorp", "test-beta").String(),
 		},
 		{
 			Provider{
@@ -39,10 +41,10 @@ func TestProviderString(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: "othercorp",
 			},
-			DefaultRegistryHost.ForDisplay() + "/othercorp/test",
+			DefaultProviderRegistryHost.ForDisplay() + "/othercorp/test",
 		},
 	}
 
@@ -62,7 +64,7 @@ func TestProviderLegacyString(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: LegacyProviderNamespace,
 			},
 			"test",
@@ -93,7 +95,7 @@ func TestProviderDisplay(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: "hashicorp",
 			},
 			"hashicorp/test",
@@ -109,7 +111,7 @@ func TestProviderDisplay(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: "othercorp",
 			},
 			"othercorp/test",
@@ -128,45 +130,6 @@ func TestProviderDisplay(t *testing.T) {
 		got := test.Input.ForDisplay()
 		if got != test.Want {
 			t.Errorf("wrong result for %s: %q\n", test.Input.String(), got)
-		}
-	}
-}
-
-func TestProviderIsDefault(t *testing.T) {
-	tests := []struct {
-		Input Provider
-		Want  bool
-	}{
-		{
-			Provider{
-				Type:      "test",
-				Hostname:  DefaultRegistryHost,
-				Namespace: "hashicorp",
-			},
-			true,
-		},
-		{
-			Provider{
-				Type:      "test",
-				Hostname:  "registry.terraform.com",
-				Namespace: "hashicorp",
-			},
-			false,
-		},
-		{
-			Provider{
-				Type:      "test",
-				Hostname:  DefaultRegistryHost,
-				Namespace: "othercorp",
-			},
-			false,
-		},
-	}
-
-	for _, test := range tests {
-		got := test.Input.IsDefault()
-		if got != test.Want {
-			t.Errorf("wrong result for %s\n", test.Input.String())
 		}
 	}
 }
@@ -203,7 +166,7 @@ func TestProviderIsBuiltIn(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: BuiltInProviderNamespace,
 			},
 			false,
@@ -211,7 +174,7 @@ func TestProviderIsBuiltIn(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: "hashicorp",
 			},
 			false,
@@ -227,7 +190,7 @@ func TestProviderIsBuiltIn(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: "othercorp",
 			},
 			false,
@@ -250,7 +213,7 @@ func TestProviderIsLegacy(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: LegacyProviderNamespace,
 			},
 			true,
@@ -266,7 +229,7 @@ func TestProviderIsLegacy(t *testing.T) {
 		{
 			Provider{
 				Type:      "test",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 				Namespace: "hashicorp",
 			},
 			false,
@@ -281,193 +244,16 @@ func TestProviderIsLegacy(t *testing.T) {
 	}
 }
 
-func TestParseAndInferProviderSourceString(t *testing.T) {
-	tests := map[string]struct {
-		Want Provider
-		Err  bool
-	}{
-		"registry.terraform.io/hashicorp/aws": {
-			Provider{
-				Type:      "aws",
-				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
-			},
-			false,
-		},
-		"registry.Terraform.io/HashiCorp/AWS": {
-			Provider{
-				Type:      "aws",
-				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
-			},
-			false,
-		},
-		"terraform.io/builtin/terraform": {
-			Provider{
-				Type:      "terraform",
-				Namespace: BuiltInProviderNamespace,
-				Hostname:  BuiltInProviderHost,
-			},
-			false,
-		},
-		"terraform": {
-			Provider{
-				Type:      "terraform",
-				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
-			},
-			false,
-		},
-		"hashicorp/aws": {
-			Provider{
-				Type:      "aws",
-				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
-			},
-			false,
-		},
-		"HashiCorp/AWS": {
-			Provider{
-				Type:      "aws",
-				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
-			},
-			false,
-		},
-		"aws": {
-			Provider{
-				Type:      "aws",
-				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
-			},
-			false,
-		},
-		"AWS": {
-			Provider{
-				Type:      "aws",
-				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
-			},
-			false,
-		},
-		"example.com/foo-bar/baz-boop": {
-			Provider{
-				Type:      "baz-boop",
-				Namespace: "foo-bar",
-				Hostname:  svchost.Hostname("example.com"),
-			},
-			false,
-		},
-		"foo-bar/baz-boop": {
-			Provider{
-				Type:      "baz-boop",
-				Namespace: "foo-bar",
-				Hostname:  DefaultRegistryHost,
-			},
-			false,
-		},
-		"localhost:8080/foo/bar": {
-			Provider{
-				Type:      "bar",
-				Namespace: "foo",
-				Hostname:  svchost.Hostname("localhost:8080"),
-			},
-			false,
-		},
-		"example.com/too/many/parts/here": {
-			Provider{},
-			true,
-		},
-		"/too///many//slashes": {
-			Provider{},
-			true,
-		},
-		"///": {
-			Provider{},
-			true,
-		},
-		"/ / /": { // empty strings
-			Provider{},
-			true,
-		},
-		"badhost!/hashicorp/aws": {
-			Provider{},
-			true,
-		},
-		"example.com/badnamespace!/aws": {
-			Provider{},
-			true,
-		},
-		"example.com/bad--namespace/aws": {
-			Provider{},
-			true,
-		},
-		"example.com/-badnamespace/aws": {
-			Provider{},
-			true,
-		},
-		"example.com/badnamespace-/aws": {
-			Provider{},
-			true,
-		},
-		"example.com/bad.namespace/aws": {
-			Provider{},
-			true,
-		},
-		"example.com/hashicorp/badtype!": {
-			Provider{},
-			true,
-		},
-		"example.com/hashicorp/bad--type": {
-			Provider{},
-			true,
-		},
-		"example.com/hashicorp/-badtype": {
-			Provider{},
-			true,
-		},
-		"example.com/hashicorp/badtype-": {
-			Provider{},
-			true,
-		},
-		"example.com/hashicorp/bad.type": {
-			Provider{},
-			true,
-		},
-
-		// We forbid the terraform- prefix both because it's redundant to
-		// include "terraform" in a Terraform provider name and because we use
-		// the longer prefix terraform-provider- to hint for users who might be
-		// accidentally using the git repository name or executable file name
-		// instead of the provider type.
-		"example.com/hashicorp/terraform-provider-bad": {
-			Provider{},
-			true,
-		},
-		"example.com/hashicorp/terraform-bad": {
-			Provider{},
-			true,
-		},
+func ExampleParseProviderSource() {
+	pAddr, err := ParseProviderSource("hashicorp/aws")
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	for name, test := range tests {
-		got, err := ParseAndInferProviderSourceString(name)
-		if diff := cmp.Diff(test.Want, got); diff != "" {
-			t.Errorf("mismatch (%q): %s", name, diff)
-		}
-		if err != nil {
-			if test.Err == false {
-				t.Errorf("got error: %s, expected success", err)
-			}
-		} else {
-			if test.Err {
-				t.Errorf("got success, expected error")
-			}
-		}
-	}
+	fmt.Printf("%#v", pAddr)
+	// Output: tfaddr.Provider{Type:"aws", Namespace:"hashicorp", Hostname:svchost.Hostname("registry.terraform.io")}
 }
 
-func TestParseRawProviderSourceString(t *testing.T) {
+func TestParseProviderSource(t *testing.T) {
 	tests := map[string]struct {
 		Want Provider
 		Err  bool
@@ -476,7 +262,7 @@ func TestParseRawProviderSourceString(t *testing.T) {
 			Provider{
 				Type:      "aws",
 				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
 		},
@@ -484,7 +270,7 @@ func TestParseRawProviderSourceString(t *testing.T) {
 			Provider{
 				Type:      "aws",
 				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
 		},
@@ -503,8 +289,8 @@ func TestParseRawProviderSourceString(t *testing.T) {
 		"terraform": {
 			Provider{
 				Type:      "terraform",
-				Namespace: LegacyProviderNamespace,
-				Hostname:  DefaultRegistryHost,
+				Namespace: UnknownProviderNamespace,
+				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
 		},
@@ -512,7 +298,7 @@ func TestParseRawProviderSourceString(t *testing.T) {
 			Provider{
 				Type:      "aws",
 				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
 		},
@@ -520,23 +306,23 @@ func TestParseRawProviderSourceString(t *testing.T) {
 			Provider{
 				Type:      "aws",
 				Namespace: "hashicorp",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
 		},
 		"aws": {
 			Provider{
 				Type:      "aws",
-				Namespace: LegacyProviderNamespace,
-				Hostname:  DefaultRegistryHost,
+				Namespace: UnknownProviderNamespace,
+				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
 		},
 		"AWS": {
 			Provider{
 				Type:      "aws",
-				Namespace: LegacyProviderNamespace,
-				Hostname:  DefaultRegistryHost,
+				Namespace: UnknownProviderNamespace,
+				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
 		},
@@ -552,7 +338,7 @@ func TestParseRawProviderSourceString(t *testing.T) {
 			Provider{
 				Type:      "baz-boop",
 				Namespace: "foo-bar",
-				Hostname:  DefaultRegistryHost,
+				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
 		},
@@ -641,7 +427,7 @@ func TestParseRawProviderSourceString(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		got, err := ParseRawProviderSourceString(name)
+		got, err := ParseProviderSource(name)
 		if diff := cmp.Diff(test.Want, got); diff != "" {
 			t.Errorf("mismatch (%q): %s", name, diff)
 		}
@@ -743,22 +529,22 @@ func TestProviderEquals(t *testing.T) {
 		Want   bool
 	}{
 		{
-			NewProvider(DefaultRegistryHost, "foo", "test"),
-			NewProvider(DefaultRegistryHost, "foo", "test"),
+			NewProvider(DefaultProviderRegistryHost, "foo", "test"),
+			NewProvider(DefaultProviderRegistryHost, "foo", "test"),
 			true,
 		},
 		{
-			NewProvider(DefaultRegistryHost, "foo", "test"),
-			NewProvider(DefaultRegistryHost, "bar", "test"),
+			NewProvider(DefaultProviderRegistryHost, "foo", "test"),
+			NewProvider(DefaultProviderRegistryHost, "bar", "test"),
 			false,
 		},
 		{
-			NewProvider(DefaultRegistryHost, "foo", "test"),
-			NewProvider(DefaultRegistryHost, "foo", "my-test"),
+			NewProvider(DefaultProviderRegistryHost, "foo", "test"),
+			NewProvider(DefaultProviderRegistryHost, "foo", "my-test"),
 			false,
 		},
 		{
-			NewProvider(DefaultRegistryHost, "foo", "test"),
+			NewProvider(DefaultProviderRegistryHost, "foo", "test"),
 			NewProvider("example.com", "foo", "test"),
 			false,
 		},
@@ -771,4 +557,8 @@ func TestProviderEquals(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateProviderAddress(t *testing.T) {
+	t.Skip("TODO")
 }

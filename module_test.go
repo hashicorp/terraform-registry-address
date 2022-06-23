@@ -1,22 +1,24 @@
 package tfaddr
 
 import (
+	"fmt"
+	"log"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	svchost "github.com/hashicorp/terraform-svchost"
 )
 
-func TestParseRawModuleSourceRegistry_Simple(t *testing.T) {
+func TestParseModuleSource_simple(t *testing.T) {
 	tests := map[string]struct {
 		input   string
-		want    ModuleSourceRegistry
+		want    Module
 		wantErr string
 	}{
 		"main registry implied": {
 			input: "hashicorp/subnets/cidr",
-			want: ModuleSourceRegistry{
-				PackageAddr: ModuleRegistryPackage{
+			want: Module{
+				Package: ModulePackage{
 					Host:         svchost.Hostname("registry.terraform.io"),
 					Namespace:    "hashicorp",
 					Name:         "subnets",
@@ -27,8 +29,8 @@ func TestParseRawModuleSourceRegistry_Simple(t *testing.T) {
 		},
 		"main registry implied, subdir": {
 			input: "hashicorp/subnets/cidr//examples/foo",
-			want: ModuleSourceRegistry{
-				PackageAddr: ModuleRegistryPackage{
+			want: Module{
+				Package: ModulePackage{
 					Host:         svchost.Hostname("registry.terraform.io"),
 					Namespace:    "hashicorp",
 					Name:         "subnets",
@@ -39,8 +41,8 @@ func TestParseRawModuleSourceRegistry_Simple(t *testing.T) {
 		},
 		"custom registry": {
 			input: "example.com/awesomecorp/network/happycloud",
-			want: ModuleSourceRegistry{
-				PackageAddr: ModuleRegistryPackage{
+			want: Module{
+				Package: ModulePackage{
 					Host:         svchost.Hostname("example.com"),
 					Namespace:    "awesomecorp",
 					Name:         "network",
@@ -51,8 +53,8 @@ func TestParseRawModuleSourceRegistry_Simple(t *testing.T) {
 		},
 		"custom registry, subdir": {
 			input: "example.com/awesomecorp/network/happycloud//examples/foo",
-			want: ModuleSourceRegistry{
-				PackageAddr: ModuleRegistryPackage{
+			want: Module{
+				Package: ModulePackage{
 					Host:         svchost.Hostname("example.com"),
 					Namespace:    "awesomecorp",
 					Name:         "network",
@@ -65,7 +67,7 @@ func TestParseRawModuleSourceRegistry_Simple(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			addr, err := ParseRawModuleSourceRegistry(test.input)
+			addr, err := ParseModuleSource(test.input)
 
 			if test.wantErr != "" {
 				switch {
@@ -89,7 +91,7 @@ func TestParseRawModuleSourceRegistry_Simple(t *testing.T) {
 
 }
 
-func TestParseRawModuleSourceRegistry(t *testing.T) {
+func TestParseModuleSource(t *testing.T) {
 	tests := map[string]struct {
 		input           string
 		wantString      string
@@ -209,7 +211,7 @@ func TestParseRawModuleSourceRegistry(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			addr, err := ParseRawModuleSourceRegistry(test.input)
+			addr, err := ParseModuleSource(test.input)
 
 			if test.wantErr != "" {
 				switch {
@@ -231,9 +233,18 @@ func TestParseRawModuleSourceRegistry(t *testing.T) {
 			if got, want := addr.ForDisplay(), test.wantForDisplay; got != want {
 				t.Errorf("wrong ForDisplay() result\ngot:  %s\nwant: %s", got, want)
 			}
-			if got, want := addr.PackageAddr.ForRegistryProtocol(), test.wantForProtocol; got != want {
+			if got, want := addr.Package.ForRegistryProtocol(), test.wantForProtocol; got != want {
 				t.Errorf("wrong ForRegistryProtocol() result\ngot:  %s\nwant: %s", got, want)
 			}
 		})
 	}
+}
+
+func ExampleParseModuleSource() {
+	mAddr, err := ParseModuleSource("hashicorp/consul/aws//modules/consul-cluster")
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%#v", mAddr)
+	// Output: tfaddr.Module{Package:tfaddr.ModulePackage{Host:svchost.Hostname("registry.terraform.io"), Namespace:"hashicorp", Name:"consul", TargetSystem:"aws"}, Subdir:"modules/consul-cluster"}
 }
