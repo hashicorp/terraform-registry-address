@@ -342,6 +342,14 @@ func TestParseProviderSource(t *testing.T) {
 			},
 			false,
 		},
+		"example.com/foo_bar/baz_boop": {
+			Provider{
+				Type:      "baz_boop",
+				Namespace: "foo_bar",
+				Hostname:  svchost.Hostname("example.com"),
+			},
+			false,
+		},
 		"localhost:8080/foo/bar": {
 			Provider{
 				Type:      "bar",
