@@ -51,6 +51,18 @@ func TestParseModuleSource_simple(t *testing.T) {
 				Subdir: "",
 			},
 		},
+		"custom registry, name/namespace not purely alphanumeric": {
+			input: "example.com/example_corp/network-ing/happycloud9",
+			want: Module{
+				Package: ModulePackage{
+					Host:         svchost.Hostname("example.com"),
+					Namespace:    "example_corp",
+					Name:         "network-ing",
+					TargetSystem: "happycloud9",
+				},
+				Subdir: "",
+			},
+		},
 		"custom registry, subdir": {
 			input: "example.com/awesomecorp/network/happycloud//examples/foo",
 			want: Module{
