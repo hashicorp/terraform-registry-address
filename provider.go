@@ -228,11 +228,12 @@ func ParseProviderSource(str string) (Provider, error) {
 	// Final Case: 3 parts
 	if len(parts) == 3 {
 		// the namespace is always the first part in a three-part source string
-		hn, err := svchost.ForComparison(parts[0])
+		givenHostname := parts[0]
+		hn, err := svchost.ForComparison(givenHostname)
 		if err != nil {
 			return Provider{}, &ParserError{
 				Summary: "Invalid provider source hostname",
-				Detail:  fmt.Sprintf(`Invalid provider source hostname namespace %q in source %q: %s"`, hn, str, err),
+				Detail:  fmt.Sprintf(`Invalid provider source hostname %q in source %q: %s"`, givenHostname, str, err),
 			}
 		}
 		ret.Hostname = hn
