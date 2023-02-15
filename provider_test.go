@@ -394,6 +394,14 @@ func TestParseProviderSource(t *testing.T) {
 			Provider{},
 			true,
 		},
+		"example.com/badnamespace_/aws": {
+			Provider{},
+			true,
+		},
+		"example.com/_badnamespace/aws": {
+			Provider{},
+			true,
+		},
 		"example.com/bad.namespace/aws": {
 			Provider{},
 			true,
@@ -411,6 +419,14 @@ func TestParseProviderSource(t *testing.T) {
 			true,
 		},
 		"example.com/hashicorp/badtype-": {
+			Provider{},
+			true,
+		},
+		"example.com/hashicorp/_badtype": {
+			Provider{},
+			true,
+		},
+		"example.com/hashicorp/badtype_": {
 			Provider{},
 			true,
 		},
