@@ -378,31 +378,22 @@ func parseSourceStringParts(str string) ([]string, error) {
 }
 
 // ParseProviderPart processes an addrs.Provider namespace or type string
-// provided by an end-user, producing a normalized version if possible or
+// provided by an end-user, returning the same string if validation succeeds or
 // an error if the string contains invalid characters.
 //
-// A provider part is processed in the same way as an individual label in a DNS
-// domain name: it is transformed to lowercase per the usual DNS case mapping
-// and normalization rules and may contain only letters, digits, and dashes.
-// Additionally, dashes may not appear at the start or end of the string.
+// As per the implementation of HashiCorp's public and private Terraform
+// registries, a provider part may be up to 64 characters long, can contain
+// letters, digits, underscores, and dashes, must start with a letter, and must
+// end with a letter or digit.
 //
-// These restrictions are intended to allow these names to appear in fussy
-// contexts such as directory/file names on case-insensitive filesystems,
-// repository names on GitHub, etc. We're using the DNS rules in particular,
-// rather than some similar rules defined locally, because the hostname part
-// of an addrs.Provider is already a hostname and it's ideal to use exactly
-// the same case folding and normalization rules for all of the parts.
-//
-// In practice a provider type string conventionally does not contain dashes
-// either. Such names are permitted, but providers with such type names will be
-// hard to use because their resource type names will not be able to contain
-// the provider type name and thus each resource will need an explicit provider
-// address specified. (A real-world example of such a provider is the
-// "google-beta" variant of the GCP provider, which has resource types that
-// start with the "google_" prefix instead.)
-//
-// It's valid to pass the result of this function as the argument to a
-// subsequent call, in which case the result will be identical.
+// In practice, these name segments are often more restricted. Most notably, the
+// public registry requires namespaces to match a GitHub username (ruling out
+// underscores). Also, some permitted provider names are hard to use because
+// their resource type names will not be able to contain the provider type name
+// and thus each resource will need an explicit provider address specified. (A
+// real-world example of such a provider is the "google-beta" variant of the GCP
+// provider, which has resource types that start with the "google_" prefix
+// instead.)
 func ParseProviderPart(given string) (string, error) {
 	if len(given) == 0 {
 		return "", fmt.Errorf("must have at least one character")
