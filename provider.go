@@ -2,10 +2,10 @@ package tfaddr
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	svchost "github.com/hashicorp/terraform-svchost"
-	"golang.org/x/net/idna"
 )
 
 // Provider encapsulates a single provider type. In the future this will be
@@ -47,6 +47,8 @@ const UnknownProviderNamespace = "?"
 // DefaultProviderRegistryHost because that host owns the mapping from legacy name to
 // FQN. This may be produced by Terraform 0.13.
 const LegacyProviderNamespace = "-"
+
+var providerNamePartPattern = regexp.MustCompile("^[0-9A-Za-z](?:[0-9A-Za-z-_]{0,62}[0-9A-Za-z])?$")
 
 // String returns an FQN string, indended for use in machine-readable output.
 func (pt Provider) String() string {
@@ -179,9 +181,10 @@ func (pt Provider) Equals(other Provider) bool {
 // terraform-config-inspect.
 //
 // The following are valid source string formats:
-// 		name
-// 		namespace/name
-// 		hostname/namespace/name
+//
+//	name
+//	namespace/name
+//	hostname/namespace/name
 //
 // "name"-only format is parsed as -/name (i.e. legacy namespace)
 // requiring further identification of the namespace via Registry API
@@ -217,7 +220,7 @@ func ParseProviderSource(str string) (Provider, error) {
 			if err != nil {
 				return Provider{}, &ParserError{
 					Summary: "Invalid provider namespace",
-					Detail:  fmt.Sprintf(`Invalid provider namespace %q in source %q: %s"`, namespace, str, err),
+					Detail:  fmt.Sprintf(`Invalid provider namespace %q in source %q: %s"`, givenNamespace, str, err),
 				}
 			}
 			ret.Namespace = namespace
@@ -227,11 +230,12 @@ func ParseProviderSource(str string) (Provider, error) {
 	// Final Case: 3 parts
 	if len(parts) == 3 {
 		// the namespace is always the first part in a three-part source string
-		hn, err := svchost.ForComparison(parts[0])
+		givenHostname := parts[0]
+		hn, err := svchost.ForComparison(givenHostname)
 		if err != nil {
 			return Provider{}, &ParserError{
 				Summary: "Invalid provider source hostname",
-				Detail:  fmt.Sprintf(`Invalid provider source hostname namespace %q in source %q: %s"`, hn, str, err),
+				Detail:  fmt.Sprintf(`Invalid provider source hostname %q in source %q: %s"`, givenHostname, str, err),
 			}
 		}
 		ret.Hostname = hn
@@ -293,7 +297,7 @@ func ParseProviderSource(str string) (Provider, error) {
 
 // MustParseProviderSource is a wrapper around ParseProviderSource that panics if
 // it returns an error.
-func MustParseProviderSource(raw string) (Provider) {
+func MustParseProviderSource(raw string) Provider {
 	p, err := ParseProviderSource(raw)
 	if err != nil {
 		panic(err)
@@ -374,31 +378,22 @@ func parseSourceStringParts(str string) ([]string, error) {
 }
 
 // ParseProviderPart processes an addrs.Provider namespace or type string
-// provided by an end-user, producing a normalized version if possible or
+// provided by an end-user, returning the same string if validation succeeds or
 // an error if the string contains invalid characters.
 //
-// A provider part is processed in the same way as an individual label in a DNS
-// domain name: it is transformed to lowercase per the usual DNS case mapping
-// and normalization rules and may contain only letters, digits, and dashes.
-// Additionally, dashes may not appear at the start or end of the string.
+// As per the implementation of HashiCorp's public and private Terraform
+// registries, a provider part may be up to 64 characters long, can contain
+// letters, digits, underscores, and dashes, must start with a letter, and must
+// end with a letter or digit.
 //
-// These restrictions are intended to allow these names to appear in fussy
-// contexts such as directory/file names on case-insensitive filesystems,
-// repository names on GitHub, etc. We're using the DNS rules in particular,
-// rather than some similar rules defined locally, because the hostname part
-// of an addrs.Provider is already a hostname and it's ideal to use exactly
-// the same case folding and normalization rules for all of the parts.
-//
-// In practice a provider type string conventionally does not contain dashes
-// either. Such names are permitted, but providers with such type names will be
-// hard to use because their resource type names will not be able to contain
-// the provider type name and thus each resource will need an explicit provider
-// address specified. (A real-world example of such a provider is the
-// "google-beta" variant of the GCP provider, which has resource types that
-// start with the "google_" prefix instead.)
-//
-// It's valid to pass the result of this function as the argument to a
-// subsequent call, in which case the result will be identical.
+// In practice, these name segments are often more restricted. Most notably, the
+// public registry requires namespaces to match a GitHub username (ruling out
+// underscores). Also, some permitted provider names are hard to use because
+// their resource type names will not be able to contain the provider type name
+// and thus each resource will need an explicit provider address specified. (A
+// real-world example of such a provider is the "google-beta" variant of the GCP
+// provider, which has resource types that start with the "google_" prefix
+// instead.)
 func ParseProviderPart(given string) (string, error) {
 	if len(given) == 0 {
 		return "", fmt.Errorf("must have at least one character")
@@ -415,21 +410,11 @@ func ParseProviderPart(given string) (string, error) {
 		return "", fmt.Errorf("dots are not allowed")
 	}
 
-	// We don't allow names containing multiple consecutive dashes, just as
-	// a matter of preference: they look weird, confusing, or incorrect.
-	// This also, as a side-effect, prevents the use of the "punycode"
-	// indicator prefix "xn--" that would cause the IDNA library to interpret
-	// the given name as punycode, because that would be weird and unexpected.
-	if strings.Contains(given, "--") {
-		return "", fmt.Errorf("cannot use multiple consecutive dashes")
+	if !providerNamePartPattern.MatchString(given) {
+		return "", fmt.Errorf("must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores")
 	}
 
-	result, err := idna.Lookup.ToUnicode(given)
-	if err != nil {
-		return "", fmt.Errorf("must contain only letters, digits, and dashes, and may not use leading or trailing dashes")
-	}
-
-	return result, nil
+	return given, nil
 }
 
 // MustParseProviderPart is a wrapper around ParseProviderPart that panics if
