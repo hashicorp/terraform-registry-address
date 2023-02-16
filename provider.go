@@ -2,10 +2,10 @@ package tfaddr
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	svchost "github.com/hashicorp/terraform-svchost"
-	"golang.org/x/net/idna"
 )
 
 // Provider encapsulates a single provider type. In the future this will be
@@ -47,6 +47,8 @@ const UnknownProviderNamespace = "?"
 // DefaultProviderRegistryHost because that host owns the mapping from legacy name to
 // FQN. This may be produced by Terraform 0.13.
 const LegacyProviderNamespace = "-"
+
+var providerNamePartPattern = regexp.MustCompile("^[0-9A-Za-z](?:[0-9A-Za-z-_]{0,62}[0-9A-Za-z])?$")
 
 // String returns an FQN string, indended for use in machine-readable output.
 func (pt Provider) String() string {
@@ -417,21 +419,11 @@ func ParseProviderPart(given string) (string, error) {
 		return "", fmt.Errorf("dots are not allowed")
 	}
 
-	// We don't allow names containing multiple consecutive dashes, just as
-	// a matter of preference: they look weird, confusing, or incorrect.
-	// This also, as a side-effect, prevents the use of the "punycode"
-	// indicator prefix "xn--" that would cause the IDNA library to interpret
-	// the given name as punycode, because that would be weird and unexpected.
-	if strings.Contains(given, "--") {
-		return "", fmt.Errorf("cannot use multiple consecutive dashes")
+	if !providerNamePartPattern.MatchString(given) {
+		return "", fmt.Errorf("must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores")
 	}
 
-	result, err := idna.Lookup.ToUnicode(given)
-	if err != nil {
-		return "", fmt.Errorf("must contain only letters, digits, and dashes, and may not use leading or trailing dashes")
-	}
-
-	return result, nil
+	return given, nil
 }
 
 // MustParseProviderPart is a wrapper around ParseProviderPart that panics if
