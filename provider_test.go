@@ -268,8 +268,8 @@ func TestParseProviderSource(t *testing.T) {
 		},
 		"registry.Terraform.io/HashiCorp/AWS": {
 			Provider{
-				Type:      "aws",
-				Namespace: "hashicorp",
+				Type:      "AWS",
+				Namespace: "HashiCorp",
 				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
@@ -304,8 +304,8 @@ func TestParseProviderSource(t *testing.T) {
 		},
 		"HashiCorp/AWS": {
 			Provider{
-				Type:      "aws",
-				Namespace: "hashicorp",
+				Type:      "AWS",
+				Namespace: "HashiCorp",
 				Hostname:  DefaultProviderRegistryHost,
 			},
 			false,
@@ -320,7 +320,7 @@ func TestParseProviderSource(t *testing.T) {
 		},
 		"AWS": {
 			Provider{
-				Type:      "aws",
+				Type:      "AWS",
 				Namespace: UnknownProviderNamespace,
 				Hostname:  DefaultProviderRegistryHost,
 			},
@@ -382,9 +382,13 @@ func TestParseProviderSource(t *testing.T) {
 			Provider{},
 			true,
 		},
-		"example.com/bad--namespace/aws": {
-			Provider{},
-			true,
+		"example.com/okay--namespace/aws": {
+			Provider{
+				Type:      "aws",
+				Namespace: "okay--namespace",
+				Hostname:  svchost.Hostname("example.com"),
+			},
+			false,
 		},
 		"example.com/-badnamespace/aws": {
 			Provider{},
@@ -410,9 +414,13 @@ func TestParseProviderSource(t *testing.T) {
 			Provider{},
 			true,
 		},
-		"example.com/hashicorp/bad--type": {
-			Provider{},
-			true,
+		"example.com/hashicorp/okay--type": {
+			Provider{
+				Type:      "okay--type",
+				Namespace: "hashicorp",
+				Hostname:  svchost.Hostname("example.com"),
+			},
+			false,
 		},
 		"example.com/hashicorp/-badtype": {
 			Provider{},
@@ -477,11 +485,11 @@ func TestParseProviderPart(t *testing.T) {
 			``,
 		},
 		`FOO`: {
-			`foo`,
+			`FOO`,
 			``,
 		},
 		`Foo`: {
-			`foo`,
+			`Foo`,
 			``,
 		},
 		`abc-123`: {
@@ -489,24 +497,24 @@ func TestParseProviderPart(t *testing.T) {
 			``,
 		},
 		`Испытание`: {
-			`испытание`,
 			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
 		},
 		`münchen`: { // this is a precomposed u with diaeresis
-			`münchen`, // this is a precomposed u with diaeresis
 			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
 		},
 		`münchen`: { // this is a separate u and combining diaeresis
-			`münchen`, // this is a precomposed u with diaeresis
 			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
 		},
 		`abc--123`: {
+			`abc--123`,
 			``,
-			`cannot use multiple consecutive dashes`,
 		},
 		`xn--80akhbyknj4f`: { // this is the punycode form of "испытание", but we don't accept punycode here
+			`xn--80akhbyknj4f`,
 			``,
-			`cannot use multiple consecutive dashes`,
 		},
 		`abc.123`: {
 			``,
@@ -514,11 +522,11 @@ func TestParseProviderPart(t *testing.T) {
 		},
 		`-abc123`: {
 			``,
-			`must contain only letters, digits, and dashes, and may not use leading or trailing dashes`,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
 		},
 		`abc123-`: {
 			``,
-			`must contain only letters, digits, and dashes, and may not use leading or trailing dashes`,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
 		},
 		``: {
 			``,
