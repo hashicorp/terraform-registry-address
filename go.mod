@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/terraform-svchost v0.1.1
-	golang.org/x/net v0.29.0
+	golang.org/x/net v0.30.0
 )
 
-require golang.org/x/text v0.18.0 // indirect
+require golang.org/x/text v0.19.0 // indirect
