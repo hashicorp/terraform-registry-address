@@ -332,7 +332,7 @@ func ValidateProviderAddress(raw string) error {
 		}
 	}
 
-	if !p.IsLegacy() {
+	if p.IsLegacy() {
 		return &ParserError{
 			Summary: "Invalid legacy provider namespace",
 			Detail:  `Expected FQN in the format "hostname/namespace/name"`,
