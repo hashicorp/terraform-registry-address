@@ -247,6 +247,64 @@ func TestProviderIsLegacy(t *testing.T) {
 	}
 }
 
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		Input       Provider
+		ExpectedErr bool
+	}{
+		{
+			MustParseProviderSource("host.com/hashicorp/coffee"),
+			false,
+		},
+		{
+			Provider{},
+			true,
+		},
+		{
+			Provider{
+				Type: "latte",
+			},
+			true,
+		},
+		{
+			Provider{
+				Type:      "latte",
+				Namespace: "coffeeshop",
+			},
+			true,
+		},
+		{
+			Provider{
+				Hostname: svchost.Hostname("registry.terraform.io"),
+			},
+			true,
+		},
+		{
+			MustParseProviderSource("unknown-namespace"),
+			true,
+		},
+		{
+			MustParseProviderSource("-/legacy"),
+			true,
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(fmt.Sprintf("%02d", i), func(t *testing.T) {
+			err := tc.Input.Validate()
+			if err != nil {
+				if tc.ExpectedErr {
+					return
+				}
+				t.Fatalf("unexpected validation error: %s", err)
+			}
+			if tc.ExpectedErr {
+				t.Fatal("expected validation error, none received")
+			}
+		})
+	}
+}
+
 func TestValidateProviderAddress(t *testing.T) {
 	tests := []struct {
 		RawInput    string
