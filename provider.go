@@ -215,6 +215,25 @@ func (pt Provider) LessThan(other Provider) bool {
 	}
 }
 
+// MarshalText implements encoding.TextMarshaler interface.
+//
+// It encodes the [Provider] into an FQN, equivalent to [String].
+func (pt Provider) MarshalText() ([]byte, error) {
+	return []byte(pt.String()), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler interface.
+//
+// It decodes a valid provider address or returns an error
+// using [ParseProviderSource].
+//
+// [Validate] should be called on the decoded [Provider]
+// if modern-style Terraform 0.14+ addresses are expected.
+func (pt *Provider) UnmarshalText(text []byte) (err error) {
+	*pt, err = ParseProviderSource(string(text))
+	return
+}
+
 // IsLegacy returns true if the provider is a legacy-style provider
 func (pt Provider) IsLegacy() bool {
 	if pt.IsZero() {

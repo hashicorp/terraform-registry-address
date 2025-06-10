@@ -4,6 +4,7 @@
 package tfaddr
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"testing"
@@ -353,6 +354,39 @@ func TestValidateProviderAddress(t *testing.T) {
 				t.Fatal("expected validation error, none received")
 			}
 		})
+	}
+}
+
+func TestProviderMarshalText(t *testing.T) {
+	p := Provider{
+		Hostname:  svchost.Hostname("registry.terraform.io"),
+		Namespace: "hashicorp",
+		Type:      "aws",
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := `"registry.terraform.io/hashicorp/aws"`
+	if diff := cmp.Diff(expected, string(b)); diff != "" {
+		t.Fatalf("marshaled text mismatch: %s", diff)
+	}
+}
+
+func TestProviderUnmarshalText(t *testing.T) {
+	address := `"registry.terraform.io/hashicorp/aws"`
+	var p Provider
+	err := json.Unmarshal([]byte(address), &p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedProvider := Provider{
+		Hostname:  svchost.Hostname("registry.terraform.io"),
+		Namespace: "hashicorp",
+		Type:      "aws",
+	}
+	if diff := cmp.Diff(expectedProvider, p); diff != "" {
+		t.Fatalf("unmarshaled provider mismatch: %s", diff)
 	}
 }
 
