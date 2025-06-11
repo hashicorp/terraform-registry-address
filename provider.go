@@ -217,8 +217,14 @@ func (pt Provider) LessThan(other Provider) bool {
 
 // MarshalText implements encoding.TextMarshaler interface.
 //
-// It encodes the [Provider] into an FQN, equivalent to [String].
+// It encodes the [Provider] into an FQN, equivalent to [String]
+// or returns an error for an invalid [Provider].
 func (pt Provider) MarshalText() ([]byte, error) {
+	err := pt.Validate()
+	if err != nil {
+		return nil, err
+	}
+
 	return []byte(pt.String()), nil
 }
 
