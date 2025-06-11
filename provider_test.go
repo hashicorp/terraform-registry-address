@@ -4,6 +4,7 @@
 package tfaddr
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"testing"
@@ -244,6 +245,148 @@ func TestProviderIsLegacy(t *testing.T) {
 		if got != test.Want {
 			t.Errorf("wrong result for %s\n", test.Input.String())
 		}
+	}
+}
+
+func TestValidate(t *testing.T) {
+	tests := []struct {
+		Input       Provider
+		ExpectedErr bool
+	}{
+		{
+			MustParseProviderSource("host.com/hashicorp/coffee"),
+			false,
+		},
+		{
+			Provider{},
+			true,
+		},
+		{
+			Provider{
+				Type: "latte",
+			},
+			true,
+		},
+		{
+			Provider{
+				Type:      "latte",
+				Namespace: "coffeeshop",
+			},
+			true,
+		},
+		{
+			Provider{
+				Hostname: svchost.Hostname("registry.terraform.io"),
+			},
+			true,
+		},
+		{
+			MustParseProviderSource("unknown-namespace"),
+			true,
+		},
+		{
+			MustParseProviderSource("-/legacy"),
+			true,
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(fmt.Sprintf("%02d", i), func(t *testing.T) {
+			err := tc.Input.Validate()
+			if err != nil {
+				if tc.ExpectedErr {
+					return
+				}
+				t.Fatalf("unexpected validation error: %s", err)
+			}
+			if tc.ExpectedErr {
+				t.Fatal("expected validation error, none received")
+			}
+		})
+	}
+}
+
+func TestValidateProviderAddress(t *testing.T) {
+	tests := []struct {
+		RawInput    string
+		ExpectedErr bool
+	}{
+		{
+			"host.com/hashicorp/coffee",
+			false,
+		},
+		{
+			"",
+			true,
+		},
+		{
+			"latte",
+			true,
+		},
+		{
+			"coffeeshop/latte",
+			true,
+		},
+		{
+			"registry.terraform.io//",
+			true,
+		},
+		{
+			"unknown-namespace",
+			true,
+		},
+		{
+			"-/legacy",
+			true,
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(fmt.Sprintf("%02d", i), func(t *testing.T) {
+			err := ValidateProviderAddress(tc.RawInput)
+			if err != nil {
+				if tc.ExpectedErr {
+					return
+				}
+				t.Fatalf("unexpected validation error for %q: %s", tc.RawInput, err)
+			}
+			if tc.ExpectedErr {
+				t.Fatal("expected validation error, none received")
+			}
+		})
+	}
+}
+
+func TestProviderMarshalText(t *testing.T) {
+	p := Provider{
+		Hostname:  svchost.Hostname("registry.terraform.io"),
+		Namespace: "hashicorp",
+		Type:      "aws",
+	}
+	b, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := `"registry.terraform.io/hashicorp/aws"`
+	if diff := cmp.Diff(expected, string(b)); diff != "" {
+		t.Fatalf("marshaled text mismatch: %s", diff)
+	}
+}
+
+func TestProviderUnmarshalText(t *testing.T) {
+	address := `"registry.terraform.io/hashicorp/aws"`
+	var p Provider
+	err := json.Unmarshal([]byte(address), &p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedProvider := Provider{
+		Hostname:  svchost.Hostname("registry.terraform.io"),
+		Namespace: "hashicorp",
+		Type:      "aws",
+	}
+	if diff := cmp.Diff(expectedProvider, p); diff != "" {
+		t.Fatalf("unmarshaled provider mismatch: %s", diff)
 	}
 }
 
@@ -560,8 +703,4 @@ func TestProviderEquals(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestValidateProviderAddress(t *testing.T) {
-	t.Skip("TODO")
 }
