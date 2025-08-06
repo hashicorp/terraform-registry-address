@@ -110,6 +110,9 @@ func ParseComponentSource(raw string) (Component, error) {
 	// Prevent potential parsing collisions with known VCS hosts
 	// These hostnames are reserved for direct VCS installation
 	if host == svchost.Hostname("github.com") || host == svchost.Hostname("bitbucket.org") || host == svchost.Hostname("gitlab.com") {
+		// NOTE: This may change in the future if we allow VCS installations
+		// 	from these hosts to be registered in the component registry.
+		// 	For now, we disallow them to avoid confusion.
 		return ret, fmt.Errorf("can't use %q as a component registry host, because it's reserved for installing directly from version control repositories", host)
 	}
 
