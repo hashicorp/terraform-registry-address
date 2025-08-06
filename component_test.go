@@ -250,6 +250,14 @@ func TestParseComponentSource(t *testing.T) {
 			input:   "registry.terraform.io/hashicorp/k8-cluster/extra/segment",
 			wantErr: "a component registry source address must have either two or three slash-separated segments",
 		},
+		"includes protocol": {
+			input:   "https://registry.terraform.io/hashicorp/k8-cluster",
+			wantErr: "a component registry source address must have either two or three slash-separated segments",
+		},
+		"includes query params": {
+			input:   "registry.terraform.io/hashicorp/k8-cluster?key=value",
+			wantErr: "component registry addresses may not include a query string portion",
+		},
 	}
 
 	for name, test := range tests {
