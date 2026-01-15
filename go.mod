@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/google/go-cmp v0.7.0
-	github.com/hashicorp/terraform-svchost v0.1.1
+	github.com/hashicorp/terraform-svchost v0.2.0
 	golang.org/x/net v0.49.0
 )
 
