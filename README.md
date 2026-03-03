@@ -109,18 +109,18 @@ When a provider source string does not include an explicit hostname (i.e. it is
 in `name` or `namespace/name` form), the hostname defaults to
 `registry.terraform.io` via the `DefaultProviderRegistryHost` constant.
 
-This default can be overridden by setting the `TF_PROVIDER_SOURCE_DEFAULT`
+This default can be overridden by setting the `TF_PROVIDER_SOURCE_HOSTNAME`
 environment variable to a valid registry hostname:
 
 ```sh
-export TF_PROVIDER_SOURCE_DEFAULT=registry.example.com
+export TF_PROVIDER_SOURCE_HOSTNAME=registry.example.com
 ```
 
 With the variable set, source strings without an explicit hostname resolve
 against the custom registry instead:
 
 ```go
-// TF_PROVIDER_SOURCE_DEFAULT=registry.example.com
+// TF_PROVIDER_SOURCE_HOSTNAME=registry.example.com
 
 pAddr, err := ParseProviderSource("hashicorp/aws")
 // pAddr.Hostname == "registry.example.com"
@@ -133,13 +133,13 @@ When a hostname is provided explicitly in the source string, it always takes
 precedence and the environment variable is ignored:
 
 ```go
-// TF_PROVIDER_SOURCE_DEFAULT=registry.example.com
+// TF_PROVIDER_SOURCE_HOSTNAME=registry.example.com
 
 pAddr, err := ParseProviderSource("registry.terraform.io/hashicorp/aws")
 // pAddr.Hostname == "registry.terraform.io"  (env var ignored)
 ```
 
-If `TF_PROVIDER_SOURCE_DEFAULT` is set to an invalid hostname,
+If `TF_PROVIDER_SOURCE_HOSTNAME` is set to an invalid hostname,
 `ParseProviderSource` returns an error.
 
 ## Ambiguous Provider Addresses

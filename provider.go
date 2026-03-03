@@ -24,6 +24,11 @@ type Provider struct {
 // not have an explicit hostname.
 const DefaultProviderRegistryHost = svchost.Hostname("registry.terraform.io")
 
+// EnvProviderSourceHostname is the environment variable that overrides the
+// default registry hostname used when a provider source string does not
+// include an explicit hostname.
+const EnvProviderSourceHostname = "TF_PROVIDER_SOURCE_HOSTNAME"
+
 // BuiltInProviderHost is the pseudo-hostname used for the "built-in" provider
 // namespace. Built-in provider addresses must also have their namespace set
 // to BuiltInProviderNamespace in order to be considered as built-in.
@@ -258,15 +263,15 @@ func (pt Provider) Equals(other Provider) bool {
 
 // defaultProviderRegistryHost returns the hostname to use when a provider
 // source string does not include an explicit hostname. It checks the
-// TF_PROVIDER_SOURCE_DEFAULT environment variable first, falling back to
+// EnvProviderSourceHostname environment variable first, falling back to
 // DefaultProviderRegistryHost.
 func defaultProviderRegistryHost() (svchost.Hostname, error) {
-	if envVal := os.Getenv("TF_PROVIDER_SOURCE_DEFAULT"); envVal != "" {
+	if envVal := os.Getenv(EnvProviderSourceHostname); envVal != "" {
 		hn, err := svchost.ForComparison(envVal)
 		if err != nil {
 			return "", &ParserError{
-				Summary: "Invalid TF_PROVIDER_SOURCE_DEFAULT",
-				Detail:  fmt.Sprintf("The TF_PROVIDER_SOURCE_DEFAULT environment variable contains an invalid hostname %q: %s", envVal, err),
+				Summary: "Invalid " + EnvProviderSourceHostname,
+				Detail:  fmt.Sprintf("The %s environment variable contains an invalid hostname %q: %s", EnvProviderSourceHostname, envVal, err),
 			}
 		}
 		return hn, nil
