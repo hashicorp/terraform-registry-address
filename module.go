@@ -115,7 +115,7 @@ func ParseModuleSource(raw string) (Module, error) {
 
 // MustParseModuleSource is a wrapper around ParseModuleSource that panics if
 // it returns an error.
-func MustParseModuleSource(raw string) (Module) {
+func MustParseModuleSource(raw string) Module {
 	mod, err := ParseModuleSource(raw)
 	if err != nil {
 		panic(err)
@@ -129,10 +129,11 @@ func parseModuleRegistryName(given string) (string, error) {
 	// Similar to the names in provider source addresses, we defined these
 	// to be compatible with what filesystems and typical remote systems
 	// like GitHub allow in names. Unfortunately we didn't end up defining
-	// these exactly equivalently: provider names can only use dashes as
-	// punctuation, whereas module names can use underscores. So here we're
-	// using some regular expressions from the original module source
-	// implementation, rather than using the IDNA rules as we do in
+	// these exactly equivalently: provider names rely on the IDNA rules,
+	// whereas module names have historically relied on ASCII-oriented
+	// regular expressions that also allow underscores. Even though provider
+	// names now tolerate underscores, we continue using the original module
+	// source expressions here rather than the IDNA rules used in
 	// ParseProviderPart.
 
 	if !moduleRegistryNamePattern.MatchString(given) {
@@ -154,10 +155,10 @@ func parseModuleRegistryTargetSystem(given string) (string, error) {
 	// Similar to the names in provider source addresses, we defined these
 	// to be compatible with what filesystems and typical remote systems
 	// like GitHub allow in names. Unfortunately we didn't end up defining
-	// these exactly equivalently: provider names can't use dashes or
-	// underscores. So here we're using some regular expressions from the
-	// original module source implementation, rather than using the IDNA rules
-	// as we do in ParseProviderPart.
+	// these exactly equivalently: for historical reasons target systems
+	// allow only lowercase letters and digits. So here we're using the
+	// regular expressions from the original module source implementation,
+	// rather than using the IDNA rules as we do in ParseProviderPart.
 
 	if !moduleRegistryTargetSystemPattern.MatchString(given) {
 		return "", fmt.Errorf("must be between one and 64 ASCII letters or digits")
@@ -215,9 +216,10 @@ func splitPackageSubdir(given string) (packageAddr, subDir string) {
 // the subdir and the subdir.
 //
 // ex:
-//   dom.com/path/?q=p               => dom.com/path/?q=p, ""
-//   proto://dom.com/path//*?q=p     => proto://dom.com/path?q=p, "*"
-//   proto://dom.com/path//path2?q=p => proto://dom.com/path?q=p, "path2"
+//
+//	dom.com/path/?q=p               => dom.com/path/?q=p, ""
+//	proto://dom.com/path//*?q=p     => proto://dom.com/path?q=p, "*"
+//	proto://dom.com/path//path2?q=p => proto://dom.com/path?q=p, "path2"
 func sourceDirSubdir(src string) (string, string) {
 	// URL might contains another url in query parameters
 	stop := len(src)
