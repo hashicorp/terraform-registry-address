@@ -5,6 +5,7 @@ package tfaddr
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	svchost "github.com/hashicorp/terraform-svchost"
@@ -255,6 +256,24 @@ func (pt Provider) Equals(other Provider) bool {
 	return pt == other
 }
 
+// defaultProviderRegistryHost returns the hostname to use when a provider
+// source string does not include an explicit hostname. It checks the
+// TF_PROVIDER_SOURCE_DEFAULT environment variable first, falling back to
+// DefaultProviderRegistryHost.
+func defaultProviderRegistryHost() (svchost.Hostname, error) {
+	if envVal := os.Getenv("TF_PROVIDER_SOURCE_DEFAULT"); envVal != "" {
+		hn, err := svchost.ForComparison(envVal)
+		if err != nil {
+			return "", &ParserError{
+				Summary: "Invalid TF_PROVIDER_SOURCE_DEFAULT",
+				Detail:  fmt.Sprintf("The TF_PROVIDER_SOURCE_DEFAULT environment variable contains an invalid hostname %q: %s", envVal, err),
+			}
+		}
+		return hn, nil
+	}
+	return DefaultProviderRegistryHost, nil
+}
+
 // ParseProviderSource parses the source attribute and returns a provider.
 // This is intended primarily to parse the FQN-like strings returned by
 // terraform-config-inspect.
@@ -276,11 +295,16 @@ func ParseProviderSource(str string) (Provider, error) {
 
 	name := parts[len(parts)-1]
 	ret.Type = name
-	ret.Hostname = DefaultProviderRegistryHost
+
+	defaultHost, err := defaultProviderRegistryHost()
+	if err != nil {
+		return ret, err
+	}
+	ret.Hostname = defaultHost
 
 	if len(parts) == 1 {
 		return Provider{
-			Hostname:  DefaultProviderRegistryHost,
+			Hostname:  defaultHost,
 			Namespace: UnknownProviderNamespace,
 			Type:      name,
 		}, nil

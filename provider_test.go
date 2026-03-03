@@ -589,6 +589,75 @@ func TestParseProviderSource(t *testing.T) {
 	}
 }
 
+func TestParseProviderSourceDefaultEnvVar(t *testing.T) {
+	customHost := svchost.Hostname("registry.example.com")
+
+	tests := []struct {
+		name    string
+		envVal  string
+		source  string
+		want    Provider
+		wantErr bool
+	}{
+		{
+			name:   "one-part source uses env var hostname",
+			envVal: "registry.example.com",
+			source: "aws",
+			want: Provider{
+				Type:      "aws",
+				Namespace: UnknownProviderNamespace,
+				Hostname:  customHost,
+			},
+		},
+		{
+			name:   "two-part source uses env var hostname",
+			envVal: "registry.example.com",
+			source: "hashicorp/aws",
+			want: Provider{
+				Type:      "aws",
+				Namespace: "hashicorp",
+				Hostname:  customHost,
+			},
+		},
+		{
+			name:   "three-part source ignores env var hostname",
+			envVal: "registry.example.com",
+			source: "registry.terraform.io/hashicorp/aws",
+			want: Provider{
+				Type:      "aws",
+				Namespace: "hashicorp",
+				Hostname:  DefaultProviderRegistryHost,
+			},
+		},
+		{
+			name:    "invalid hostname in env var returns error",
+			envVal:  "not a valid hostname!",
+			source:  "hashicorp/aws",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TF_PROVIDER_SOURCE_DEFAULT", tc.envVal)
+
+			got, err := ParseProviderSource(tc.source)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got none")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("mismatch: %s", diff)
+			}
+		})
+	}
+}
+
 func TestParseProviderPart(t *testing.T) {
 	tests := map[string]struct {
 		Want  string
