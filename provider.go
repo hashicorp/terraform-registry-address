@@ -29,6 +29,11 @@ const DefaultProviderRegistryHost = svchost.Hostname("registry.terraform.io")
 // include an explicit hostname.
 const EnvProviderSourceHostname = "TF_PROVIDER_SOURCE_HOSTNAME"
 
+// EnvProviderSourceNamespace is the environment variable that overrides the
+// default provider namespace used when a provider source string contains
+// only a name with no explicit namespace.
+const EnvProviderSourceNamespace = "TF_PROVIDER_SOURCE_NAMESPACE"
+
 // BuiltInProviderHost is the pseudo-hostname used for the "built-in" provider
 // namespace. Built-in provider addresses must also have their namespace set
 // to BuiltInProviderNamespace in order to be considered as built-in.
@@ -279,6 +284,24 @@ func defaultProviderRegistryHost() (svchost.Hostname, error) {
 	return DefaultProviderRegistryHost, nil
 }
 
+// defaultProviderNamespace returns the namespace to use when a provider source
+// string contains only a name with no explicit namespace. It checks the
+// EnvProviderSourceNamespace environment variable first, falling back to
+// UnknownProviderNamespace.
+func defaultProviderNamespace() (string, error) {
+	if envVal := os.Getenv(EnvProviderSourceNamespace); envVal != "" {
+		ns, err := ParseProviderPart(envVal)
+		if err != nil {
+			return "", &ParserError{
+				Summary: "Invalid " + EnvProviderSourceNamespace,
+				Detail:  fmt.Sprintf("The %s environment variable contains an invalid namespace %q: %s", EnvProviderSourceNamespace, envVal, err),
+			}
+		}
+		return ns, nil
+	}
+	return UnknownProviderNamespace, nil
+}
+
 // ParseProviderSource parses the source attribute and returns a provider.
 // This is intended primarily to parse the FQN-like strings returned by
 // terraform-config-inspect.
@@ -308,9 +331,13 @@ func ParseProviderSource(str string) (Provider, error) {
 	ret.Hostname = defaultHost
 
 	if len(parts) == 1 {
+		defaultNamespace, err := defaultProviderNamespace()
+		if err != nil {
+			return ret, err
+		}
 		return Provider{
 			Hostname:  defaultHost,
-			Namespace: UnknownProviderNamespace,
+			Namespace: defaultNamespace,
 			Type:      name,
 		}, nil
 	}
