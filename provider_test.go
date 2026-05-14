@@ -480,6 +480,14 @@ func TestParseProviderSource(t *testing.T) {
 			},
 			false,
 		},
+		"app.staging.terraform.io/example_corp/fakerancher": {
+			Provider{
+				Type:      "fakerancher",
+				Namespace: "example_corp",
+				Hostname:  svchost.Hostname("app.staging.terraform.io"),
+			},
+			false,
+		},
 		"foo-bar/baz-boop": {
 			Provider{
 				Type:      "baz-boop",
@@ -622,6 +630,10 @@ func TestParseProviderPart(t *testing.T) {
 			`münchen`, // this is a precomposed u with diaeresis
 			``,
 		},
+		`example_corp`: {
+			`example_corp`,
+			``,
+		},
 		`abc--123`: {
 			``,
 			`cannot use multiple consecutive dashes`,
@@ -636,11 +648,19 @@ func TestParseProviderPart(t *testing.T) {
 		},
 		`-abc123`: {
 			``,
-			`must contain only letters, digits, and dashes, and may not use leading or trailing dashes`,
+			`must contain only letters, digits, underscores, and dashes, and may not use leading or trailing dashes or underscores`,
 		},
 		`abc123-`: {
 			``,
-			`must contain only letters, digits, and dashes, and may not use leading or trailing dashes`,
+			`must contain only letters, digits, underscores, and dashes, and may not use leading or trailing dashes or underscores`,
+		},
+		`_abc123`: {
+			``,
+			`underscores may not be used as a prefix or suffix`,
+		},
+		`abc123_`: {
+			``,
+			`underscores may not be used as a prefix or suffix`,
 		},
 		``: {
 			``,
