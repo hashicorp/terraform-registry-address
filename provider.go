@@ -5,6 +5,7 @@ package tfaddr
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	svchost "github.com/hashicorp/terraform-svchost"
@@ -22,6 +23,16 @@ type Provider struct {
 // DefaultProviderRegistryHost is the hostname used for provider addresses that do
 // not have an explicit hostname.
 const DefaultProviderRegistryHost = svchost.Hostname("registry.terraform.io")
+
+// EnvProviderSourceHostname is the environment variable that overrides the
+// default registry hostname used when a provider source string does not
+// include an explicit hostname.
+const EnvProviderSourceHostname = "TF_PROVIDER_SOURCE_HOSTNAME"
+
+// EnvProviderSourceNamespace is the environment variable that overrides the
+// default provider namespace used when a provider source string contains
+// only a name with no explicit namespace.
+const EnvProviderSourceNamespace = "TF_PROVIDER_SOURCE_NAMESPACE"
 
 // BuiltInProviderHost is the pseudo-hostname used for the "built-in" provider
 // namespace. Built-in provider addresses must also have their namespace set
@@ -255,6 +266,42 @@ func (pt Provider) Equals(other Provider) bool {
 	return pt == other
 }
 
+// defaultProviderRegistryHost returns the hostname to use when a provider
+// source string does not include an explicit hostname. It checks the
+// EnvProviderSourceHostname environment variable first, falling back to
+// DefaultProviderRegistryHost.
+func defaultProviderRegistryHost() (svchost.Hostname, error) {
+	if envVal := os.Getenv(EnvProviderSourceHostname); envVal != "" {
+		hn, err := svchost.ForComparison(envVal)
+		if err != nil {
+			return "", &ParserError{
+				Summary: "Invalid " + EnvProviderSourceHostname,
+				Detail:  fmt.Sprintf("The %s environment variable contains an invalid hostname %q: %s", EnvProviderSourceHostname, envVal, err),
+			}
+		}
+		return hn, nil
+	}
+	return DefaultProviderRegistryHost, nil
+}
+
+// defaultProviderNamespace returns the namespace to use when a provider source
+// string contains only a name with no explicit namespace. It checks the
+// EnvProviderSourceNamespace environment variable first, falling back to
+// UnknownProviderNamespace.
+func defaultProviderNamespace() (string, error) {
+	if envVal := os.Getenv(EnvProviderSourceNamespace); envVal != "" {
+		ns, err := ParseProviderPart(envVal)
+		if err != nil {
+			return "", &ParserError{
+				Summary: "Invalid " + EnvProviderSourceNamespace,
+				Detail:  fmt.Sprintf("The %s environment variable contains an invalid namespace %q: %s", EnvProviderSourceNamespace, envVal, err),
+			}
+		}
+		return ns, nil
+	}
+	return UnknownProviderNamespace, nil
+}
+
 // ParseProviderSource parses the source attribute and returns a provider.
 // This is intended primarily to parse the FQN-like strings returned by
 // terraform-config-inspect.
@@ -276,12 +323,21 @@ func ParseProviderSource(str string) (Provider, error) {
 
 	name := parts[len(parts)-1]
 	ret.Type = name
-	ret.Hostname = DefaultProviderRegistryHost
+
+	defaultHost, err := defaultProviderRegistryHost()
+	if err != nil {
+		return ret, err
+	}
+	ret.Hostname = defaultHost
 
 	if len(parts) == 1 {
+		defaultNamespace, err := defaultProviderNamespace()
+		if err != nil {
+			return ret, err
+		}
 		return Provider{
-			Hostname:  DefaultProviderRegistryHost,
-			Namespace: UnknownProviderNamespace,
+			Hostname:  defaultHost,
+			Namespace: defaultNamespace,
 			Type:      name,
 		}, nil
 	}

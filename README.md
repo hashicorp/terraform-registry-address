@@ -103,6 +103,80 @@ have different address formats, such as `./local` or
 This library does _not_ recognize such other address formats
 and it will return error upon parsing these.
 
+## Default Provider Registry Host
+
+When a provider source string does not include an explicit hostname (i.e. it is
+in `name` or `namespace/name` form), the hostname defaults to
+`registry.terraform.io` via the `DefaultProviderRegistryHost` constant.
+
+This default can be overridden by setting the `TF_PROVIDER_SOURCE_HOSTNAME`
+environment variable to a valid registry hostname:
+
+```sh
+export TF_PROVIDER_SOURCE_HOSTNAME=registry.example.com
+```
+
+With the variable set, source strings without an explicit hostname resolve
+against the custom registry instead:
+
+```go
+// TF_PROVIDER_SOURCE_HOSTNAME=registry.example.com
+
+pAddr, err := ParseProviderSource("hashicorp/aws")
+// pAddr.Hostname == "registry.example.com"
+
+pAddr, err := ParseProviderSource("aws")
+// pAddr.Hostname == "registry.example.com"
+```
+
+When a hostname is provided explicitly in the source string, it always takes
+precedence and the environment variable is ignored:
+
+```go
+// TF_PROVIDER_SOURCE_HOSTNAME=registry.example.com
+
+pAddr, err := ParseProviderSource("registry.terraform.io/hashicorp/aws")
+// pAddr.Hostname == "registry.terraform.io"  (env var ignored)
+```
+
+If `TF_PROVIDER_SOURCE_HOSTNAME` is set to an invalid hostname,
+`ParseProviderSource` returns an error.
+
+### Default Provider Namespace
+
+When a provider source string contains only a name with no namespace (e.g.
+`aws`), the namespace defaults to an unknown placeholder that must be resolved
+via the Registry API. This default can be overridden by setting the
+`TF_PROVIDER_SOURCE_NAMESPACE` environment variable:
+
+```sh
+export TF_PROVIDER_SOURCE_NAMESPACE=hashicorp
+```
+
+With the variable set, a name-only source string resolves using the given
+namespace instead:
+
+```go
+// TF_PROVIDER_SOURCE_NAMESPACE=hashicorp
+
+pAddr, err := ParseProviderSource("aws")
+// pAddr.Namespace == "hashicorp"
+```
+
+When a namespace is provided explicitly in the source string (two- or
+three-part form), it always takes precedence and the environment variable
+is ignored:
+
+```go
+// TF_PROVIDER_SOURCE_NAMESPACE=hashicorp
+
+pAddr, err := ParseProviderSource("mycorp/aws")
+// pAddr.Namespace == "mycorp"  (env var ignored)
+```
+
+If `TF_PROVIDER_SOURCE_NAMESPACE` is set to an invalid namespace value,
+`ParseProviderSource` returns an error.
+
 ## Ambiguous Provider Addresses
 
 Qualified addresses with namespace (such as `hashicorp/aws`)
