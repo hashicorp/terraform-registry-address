@@ -480,6 +480,29 @@ func TestParseProviderSource(t *testing.T) {
 			},
 			false,
 		},
+		// Terraform Cloud allows underscores in organization names, which are
+		// used as provider namespaces in its private registry.
+		"app.terraform.io/openai_inc/kube": {
+			Provider{
+				Type:      "kube",
+				Namespace: "openai_inc",
+				Hostname:  svchost.Hostname("app.terraform.io"),
+			},
+			false,
+		},
+		"app.terraform.io/my_org/aws": {
+			Provider{
+				Type:      "aws",
+				Namespace: "my_org",
+				Hostname:  svchost.Hostname("app.terraform.io"),
+			},
+			false,
+		},
+		// Other special characters in the namespace remain invalid.
+		"app.terraform.io/foo!bar/baz": {
+			Provider{},
+			true,
+		},
 		"foo-bar/baz-boop": {
 			Provider{
 				Type:      "baz-boop",
@@ -636,11 +659,59 @@ func TestParseProviderPart(t *testing.T) {
 		},
 		`-abc123`: {
 			``,
-			`must contain only letters, digits, and dashes, and may not use leading or trailing dashes`,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
 		},
 		`abc123-`: {
 			``,
-			`must contain only letters, digits, and dashes, and may not use leading or trailing dashes`,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
+		},
+		// Underscores are permitted because Terraform Cloud allows them in
+		// organization names, which become provider namespaces.
+		`openai_inc`: {
+			`openai_inc`,
+			``,
+		},
+		`my_org`: {
+			`my_org`,
+			``,
+		},
+		`Org_Name`: { // underscores must not interfere with case folding
+			`org_name`,
+			``,
+		},
+		`abc_123`: {
+			`abc_123`,
+			``,
+		},
+		// Underscores may not lead or trail, matching the dash restriction.
+		`_leading`: {
+			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
+		},
+		`trailing_`: {
+			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
+		},
+		`_`: {
+			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
+		},
+		// Other special ASCII characters remain disallowed.
+		`abc!123`: {
+			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
+		},
+		`abc$123`: {
+			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
+		},
+		`abc%123`: {
+			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
+		},
+		`abc 123`: {
+			``,
+			`must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores`,
 		},
 		``: {
 			``,

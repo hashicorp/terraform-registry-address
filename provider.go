@@ -11,6 +11,55 @@ import (
 	"golang.org/x/net/idna"
 )
 
+// providerPartLookup is a custom IDNA profile used to normalize and validate
+// the individual parts (namespace and type) of a provider source address.
+//
+// It mirrors the standard idna.Lookup profile, which provides the canonical
+// normalization (case folding, Unicode normalization) that allows two
+// addresses to be compared and sorted reliably. The one difference is that
+// StrictDomainName (the STD3 rules) is disabled, which permits underscores in
+// addition to letters, digits, and dashes.
+//
+// Terraform Cloud allows underscores in organization names and uses that name
+// as the provider namespace in its private registry, so provider source
+// addresses such as "app.terraform.io/openai_inc/kube" must be accepted.
+//
+// Disabling StrictDomainName also relaxes the rules to allow other special
+// ASCII characters, so ParseProviderPart performs an additional validation
+// check to ensure only underscores (and the already-permitted letters, digits,
+// and dashes) are allowed; see disallowedProviderPartRune.
+var providerPartLookup = idna.New(
+	idna.MapForLookup(),
+	idna.BidiRule(),
+	idna.StrictDomainName(false),
+)
+
+// disallowedProviderPartRune reports whether r is an ASCII character that is
+// not permitted in a provider part. Disabling StrictDomainName in the IDNA
+// profile would otherwise allow special ASCII characters such as '!', '$' or
+// '%'; we only want to additionally permit the underscore, so we reject any
+// other ASCII character that isn't a letter, digit, dash, or underscore.
+//
+// Non-ASCII runes are left to the IDNA profile to validate so that
+// international names continue to be normalized and accepted as before.
+func disallowedProviderPartRune(r rune) bool {
+	if r > 127 {
+		return false
+	}
+	switch {
+	case r >= 'a' && r <= 'z':
+		return false
+	case r >= 'A' && r <= 'Z':
+		return false
+	case r >= '0' && r <= '9':
+		return false
+	case r == '-' || r == '_':
+		return false
+	default:
+		return true
+	}
+}
+
 // Provider encapsulates a single provider type. In the future this will be
 // extended to include additional fields including Namespace and SourceHost
 type Provider struct {
@@ -506,9 +555,24 @@ func ParseProviderPart(given string) (string, error) {
 		return "", fmt.Errorf("cannot use multiple consecutive dashes")
 	}
 
-	result, err := idna.Lookup.ToUnicode(given)
+	// Disallow special ASCII characters that would otherwise be permitted now
+	// that StrictDomainName is disabled in our IDNA profile. We only intend to
+	// additionally permit underscores beyond the standard letters, digits, and
+	// dashes; characters such as '!', '$' or '%' remain invalid.
+	if strings.IndexFunc(given, disallowedProviderPartRune) != -1 {
+		return "", fmt.Errorf("must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores")
+	}
+
+	// Underscores are permitted as interior punctuation, but not as a leading
+	// or trailing character, matching the existing restriction on dashes (which
+	// is enforced by the IDNA profile's hyphen checks).
+	if strings.HasPrefix(given, "_") || strings.HasSuffix(given, "_") {
+		return "", fmt.Errorf("must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores")
+	}
+
+	result, err := providerPartLookup.ToUnicode(given)
 	if err != nil {
-		return "", fmt.Errorf("must contain only letters, digits, and dashes, and may not use leading or trailing dashes")
+		return "", fmt.Errorf("must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores")
 	}
 
 	return result, nil
