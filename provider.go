@@ -51,6 +51,7 @@ const UnknownProviderNamespace = "?"
 // FQN. This may be produced by Terraform 0.13.
 const LegacyProviderNamespace = "-"
 
+var allowedPattern = regexp.MustCompile("^[0-9A-Za-z](?:[0-9A-Za-z-_]{0,62}[0-9A-Za-z])?$")
 // String returns an FQN string, indended for use in machine-readable output.
 func (pt Provider) String() string {
 	if pt.IsZero() {
@@ -502,13 +503,24 @@ func ParseProviderPart(given string) (string, error) {
 	// This also, as a side-effect, prevents the use of the "punycode"
 	// indicator prefix "xn--" that would cause the IDNA library to interpret
 	// the given name as punycode, because that would be weird and unexpected.
-	if strings.Contains(given, "--") {
-		return "", fmt.Errorf("cannot use multiple consecutive dashes")
+
+	// if strings.Contains(given, "--") {
+	// 	return "", fmt.Errorf("cannot use multiple consecutive dashes")
+	// } //we could remove this check because ValidateLabels(true) will not allow double dashes
+
+	// Custom validation for allowed characters
+	if !allowedPattern.MatchString(given) {
+		return "", fmt.Errorf("must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores")
 	}
 
-	result, err := idna.Lookup.ToUnicode(given)
+	opts := idna.New(idna.MapForLookup(),
+		idna.StrictDomainName(false),
+		idna.ValidateLabels(true),
+		idna.Transitional(false))
+
+	result, err := opts.ToUnicode(given)
 	if err != nil {
-		return "", fmt.Errorf("must contain only letters, digits, and dashes, and may not use leading or trailing dashes")
+		return result, fmt.Errorf("must contain only letters, digits, dashes, and underscores, and may not use leading or trailing dashes or underscores") // even when the conversion fails, it result will return the original string
 	}
 
 	return result, nil
