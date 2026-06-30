@@ -6,6 +6,7 @@ package tfaddr
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	svchost "github.com/hashicorp/terraform-svchost"
 	"golang.org/x/net/idna"
@@ -461,15 +462,17 @@ func parseSourceStringParts(str string) ([]string, error) {
 //
 // A provider part is processed in the same way as an individual label in a DNS
 // domain name: it is transformed to lowercase per the usual DNS case mapping
-// and normalization rules and may contain only letters, digits, and dashes.
-// Additionally, dashes may not appear at the start or end of the string.
+// and normalization rules and may contain only letters, digits, underscores,
+// and dashes. Additionally, dashes may not appear at the start or end of the
+// string, and underscores may not appear at the start or end either.
 //
 // These restrictions are intended to allow these names to appear in fussy
 // contexts such as directory/file names on case-insensitive filesystems,
 // repository names on GitHub, etc. We're using the DNS rules in particular,
 // rather than some similar rules defined locally, because the hostname part
 // of an addrs.Provider is already a hostname and it's ideal to use exactly
-// the same case folding and normalization rules for all of the parts.
+// the same case folding and normalization rules for the hostname and the
+// non-underscore parts of the namespace/type components.
 //
 // In practice a provider type string conventionally does not contain dashes
 // either. Such names are permitted, but providers with such type names will be
@@ -486,32 +489,56 @@ func ParseProviderPart(given string) (string, error) {
 		return "", fmt.Errorf("must have at least one character")
 	}
 
-	// We're going to process the given name using the same "IDNA" library we
-	// use for the hostname portion, since it already implements the case
-	// folding rules we want.
-	//
-	// The idna library doesn't expose individual label parsing directly, but
-	// once we've verified it doesn't contain any dots we can just treat it
-	// like a top-level domain for this library's purposes.
 	if strings.ContainsRune(given, '.') {
 		return "", fmt.Errorf("dots are not allowed")
 	}
 
-	// We don't allow names containing multiple consecutive dashes, just as
-	// a matter of preference: they look weird, confusing, or incorrect.
-	// This also, as a side-effect, prevents the use of the "punycode"
-	// indicator prefix "xn--" that would cause the IDNA library to interpret
-	// the given name as punycode, because that would be weird and unexpected.
 	if strings.Contains(given, "--") {
 		return "", fmt.Errorf("cannot use multiple consecutive dashes")
 	}
 
-	result, err := idna.Lookup.ToUnicode(given)
-	if err != nil {
-		return "", fmt.Errorf("must contain only letters, digits, and dashes, and may not use leading or trailing dashes")
+	if r, _ := utf8.DecodeRuneInString(given); r == '_' {
+		return "", fmt.Errorf("underscores may not be used as a prefix or suffix")
+	}
+	if r, _ := utf8.DecodeLastRuneInString(given); r == '_' {
+		return "", fmt.Errorf("underscores may not be used as a prefix or suffix")
 	}
 
-	return result, nil
+	var segment strings.Builder
+	var result strings.Builder
+
+	flush := func() error {
+		if segment.Len() == 0 {
+			return nil
+		}
+		normalized, err := idna.Lookup.ToUnicode(segment.String())
+		if err != nil {
+			return fmt.Errorf("must contain only letters, digits, underscores, and dashes, and may not use leading or trailing dashes or underscores")
+		}
+		if strings.HasPrefix(normalized, "-") || strings.HasSuffix(normalized, "-") {
+			return fmt.Errorf("must contain only letters, digits, underscores, and dashes, and may not use leading or trailing dashes or underscores")
+		}
+		result.WriteString(normalized)
+		segment.Reset()
+		return nil
+	}
+
+	for _, r := range given {
+		if r == '_' {
+			if err := flush(); err != nil {
+				return "", err
+			}
+			result.WriteRune('_')
+			continue
+		}
+		segment.WriteRune(r)
+	}
+
+	if err := flush(); err != nil {
+		return "", err
+	}
+
+	return result.String(), nil
 }
 
 // MustParseProviderPart is a wrapper around ParseProviderPart that panics if
