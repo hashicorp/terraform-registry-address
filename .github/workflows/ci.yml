@@ -32,8 +32,9 @@ jobs:
           - windows-latest
           - macos-latest
         go:
-          - '1.25'
-          - '1.26'
+          - minimum
+          - oldstable
+          - stable
     steps:
       -
         name: Checkout
@@ -42,7 +43,14 @@ jobs:
         name: Unshallow
         run: git fetch --prune --unshallow
       -
+        name: Set up minimum Go
+        if: matrix.go == 'minimum'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      -
         name: Set up Go
+        if: matrix.go != 'minimum'
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go }}
